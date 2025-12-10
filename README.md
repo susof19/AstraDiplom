@@ -33,6 +33,22 @@ astra-trainer/
 
 ## 🚀 Быстрый старт
 
+### Для Astra Linux (рекомендуется)
+
+Используйте автоматический скрипт установки:
+
+```bash
+cd AstraDiplom
+chmod +x scripts/quickstart-astra.sh
+./scripts/quickstart-astra.sh
+```
+
+Скрипт автоматически установит все зависимости и создаст ярлык для запуска.
+
+См. [docs/ASTRA_QUICKSTART.md](docs/ASTRA_QUICKSTART.md) для подробностей.
+
+### Для других Linux дистрибутивов
+
 См. [QUICKSTART.md](QUICKSTART.md) для детальных инструкций.
 
 ### Минимальные требования
@@ -126,10 +142,11 @@ npm start
 
 ## 📚 Документация
 
-- [QUICKSTART.md](QUICKSTART.md) - Быстрый старт
+- [docs/ASTRA_QUICKSTART.md](docs/ASTRA_QUICKSTART.md) - **Быстрый старт на Astra Linux (автоматическая установка)**
+- [QUICKSTART.md](QUICKSTART.md) - Быстрый старт для других систем
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Архитектура системы
 - [docs/SETUP.md](docs/SETUP.md) - Детальная настройка
-- [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - **Разработка на Windows**
+- [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows
 - [docs/ASTRA_LINUX_SETUP.md](docs/ASTRA_LINUX_SETUP.md) - Настройка для Astra Linux Special Edition
 - [docs/MISSIONS.md](docs/MISSIONS.md) - Создание миссий
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Руководство по вкладу
