@@ -1,0 +1,32 @@
+name: "Скрипт резервного копирования"
+description: "Создайте bash-скрипт для резервного копирования домашней директории"
+level: "B"
+difficulty: 3
+estimated_time: 20
+
+objectives:
+  - "Создать bash-скрипт backup.sh"
+  - "Добавить проверку существования директории"
+  - "Добавить логирование операций"
+
+hints:
+  - "Используйте tar для создания архива"
+  - "Добавьте проверку с помощью test или [ ]"
+  - "Используйте >> для добавления в лог"
+
+checks:
+  - name: "Скрипт создан"
+    type: "file_exists"
+    path: "/home/user/backup.sh"
+    points: 30
+  - name: "Скрипт исполняемый"
+    type: "command_output"
+    command: "test -x /home/user/backup.sh && echo 'executable' || echo 'not_executable'"
+    expected: "executable"
+    points: 20
+  - name: "Скрипт содержит проверки"
+    type: "file_content"
+    path: "/home/user/backup.sh"
+    expected: "test"
+    points: 50
+

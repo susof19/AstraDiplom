@@ -1,0 +1,22 @@
+name: "Установка приложения из Software Center"
+description: "Установите текстовый редактор Gedit через Software Center"
+level: "A"
+difficulty: 2
+estimated_time: 10
+
+objectives:
+  - "Открыть Software Center"
+  - "Найти приложение Gedit"
+  - "Установить приложение"
+
+hints:
+  - "Software Center можно найти в меню приложений"
+  - "Для установки потребуются права администратора"
+
+checks:
+  - name: "Приложение установлено"
+    type: "command_output"
+    command: "which gedit"
+    expected: "/usr/bin/gedit"
+    points: 100
+

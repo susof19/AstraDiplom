@@ -1,0 +1,38 @@
+name: "Создание systemd сервиса"
+description: "Создайте systemd-сервис, обслуживающий HTTP на 127.0.0.1:8080"
+level: "C"
+difficulty: 5
+estimated_time: 45
+
+objectives:
+  - "Создать systemd unit файл"
+  - "Настроить сервис для запуска простого HTTP сервера"
+  - "Запустить и проверить работу сервиса"
+  - "Настроить автозапуск"
+
+hints:
+  - "Unit файлы находятся в /etc/systemd/system/"
+  - "Используйте systemctl для управления сервисом"
+  - "Не забудьте выполнить systemctl daemon-reload"
+
+checks:
+  - name: "Unit файл создан"
+    type: "file_exists"
+    path: "/etc/systemd/system/http-server.service"
+    points: 25
+  - name: "Сервис активен"
+    type: "command_output"
+    command: "systemctl is-active http-server.service"
+    expected: "active"
+    points: 30
+  - name: "Сервис включён"
+    type: "command_output"
+    command: "systemctl is-enabled http-server.service"
+    expected: "enabled"
+    points: 25
+  - name: "Сервер отвечает"
+    type: "command_output"
+    command: "curl -s http://127.0.0.1:8080 | head -1"
+    expected: ""
+    points: 20
+

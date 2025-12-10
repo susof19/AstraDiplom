@@ -1,0 +1,26 @@
+name: "Создание архива логов"
+description: "Создайте архив всех логов из /var/log с подтверждением"
+level: "B"
+difficulty: 2
+estimated_time: 10
+
+objectives:
+  - "Найти все файлы логов в /var/log"
+  - "Создать архив с интерактивным подтверждением"
+  - "Проверить целостность архива"
+
+hints:
+  - "Используйте команду tar с флагом -i для интерактивности"
+  - "Проверьте архив командой tar -tf"
+
+checks:
+  - name: "Архив создан"
+    type: "file_exists"
+    path: "/home/user/logs_backup.tar.gz"
+    points: 50
+  - name: "Архив содержит файлы"
+    type: "command_output"
+    command: "tar -tzf /home/user/logs_backup.tar.gz | head -1"
+    expected: ""
+    points: 50
+

@@ -1,0 +1,22 @@
+name: "Изменение фона рабочего стола"
+description: "Измените фон рабочего стола на изображение из папки Изображения"
+level: "A"
+difficulty: 1
+estimated_time: 3
+
+objectives:
+  - "Открыть настройки рабочего стола"
+  - "Выбрать изображение из папки Изображения"
+  - "Применить изменения"
+
+hints:
+  - "Настройки можно открыть через контекстное меню рабочего стола"
+  - "Изображения обычно хранятся в ~/Изображения"
+
+checks:
+  - name: "Фон изменён"
+    type: "command_output"
+    command: "gsettings get org.gnome.desktop.background picture-uri"
+    expected: "file://"
+    points: 100
+

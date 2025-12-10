@@ -1,0 +1,104 @@
+import { useParams } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getMission, createSandbox, checkMission } from '../api/missions'
+import SandboxViewer from '../components/SandboxViewer'
+import './MissionDetail.css'
+
+function MissionDetail() {
+  const { missionId } = useParams()
+  const queryClient = useQueryClient()
+
+  const { data: mission, isLoading } = useQuery({
+    queryKey: ['mission', missionId],
+    queryFn: () => getMission(missionId)
+  })
+
+  const createSandboxMutation = useMutation({
+    mutationFn: () => createSandbox(missionId, mission?.level),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['sandbox', missionId])
+    }
+  })
+
+  const checkMissionMutation = useMutation({
+    mutationFn: () => checkMission(missionId, mission?.level),
+    onSuccess: (result) => {
+      alert(`Результат: ${result.result}\nОценка: ${result.score}%`)
+    }
+  })
+
+  if (isLoading) {
+    return <div className="loading">Загрузка миссии...</div>
+  }
+
+  if (!mission) {
+    return <div className="error">Миссия не найдена</div>
+  }
+
+  return (
+    <div className="mission-detail">
+      <div className="mission-info">
+        <div className="mission-header">
+          <div>
+            <span className={`level-badge level-${mission.level}`}>
+              Уровень {mission.level}
+            </span>
+            <h1>{mission.name}</h1>
+          </div>
+          <div className="mission-meta">
+            <span>⏱️ {mission.estimated_time} мин</span>
+            <span>⭐ {'⭐'.repeat(mission.difficulty || 1)}</span>
+          </div>
+        </div>
+
+        <div className="mission-description">
+          <p>{mission.description}</p>
+        </div>
+
+        <div className="objectives">
+          <h2>Цели миссии:</h2>
+          <ul>
+            {mission.objectives?.map((obj, idx) => (
+              <li key={idx}>{obj}</li>
+            ))}
+          </ul>
+        </div>
+
+        {mission.hints && mission.hints.length > 0 && (
+          <div className="hints">
+            <h2>💡 Подсказки:</h2>
+            <ul>
+              {mission.hints.map((hint, idx) => (
+                <li key={idx}>{hint}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="actions">
+          <button
+            onClick={() => createSandboxMutation.mutate()}
+            disabled={createSandboxMutation.isLoading}
+            className="btn btn-primary"
+          >
+            {createSandboxMutation.isLoading ? 'Запуск...' : '🚀 Запустить песочницу'}
+          </button>
+          <button
+            onClick={() => checkMissionMutation.mutate()}
+            disabled={checkMissionMutation.isLoading}
+            className="btn btn-secondary"
+          >
+            {checkMissionMutation.isLoading ? 'Проверка...' : '✓ Проверить выполнение'}
+          </button>
+        </div>
+      </div>
+
+      <div className="sandbox-container">
+        <SandboxViewer missionId={missionId} level={mission.level} />
+      </div>
+    </div>
+  )
+}
+
+export default MissionDetail
+

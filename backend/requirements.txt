@@ -1,0 +1,15 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+aiofiles==23.2.1
+websockets==12.0
+pyyaml==6.0.1
+jinja2==3.1.2
+python-multipart==0.0.6
+cryptography==41.0.7
+
+# Примечание: Podman управляется через subprocess вызовы команды 'podman'
+# Если в будущем понадобится Python API для Podman, можно добавить:
+# podman  # PodmanPy - Python клиент для Podman REST API
+

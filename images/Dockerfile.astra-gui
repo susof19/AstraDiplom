@@ -1,0 +1,48 @@
+# Образ Astra Linux с GUI для уровня A
+# Основан на официальной документации Astra Linux Special Edition
+# 
+# Использование:
+#   podman build -f Dockerfile.astra-gui -t astra-linux:gui .
+#
+# Требуется базовый образ astra-linux:se (созданный через debootstrap)
+
+FROM astra-linux:se
+
+# Установка базовых пакетов GUI
+RUN apt-get update && apt-get install -y \
+    xfce4 \
+    xfce4-goodies \
+    x11vnc \
+    xvfb \
+    firefox \
+    thunar \
+    gedit \
+    software-center \
+    && rm -rf /var/lib/apt/lists/*
+
+# Настройка VNC
+RUN mkdir -p /root/.vnc && \
+    x11vnc -storepasswd astra123 /root/.vnc/passwd || true
+
+# Создание пользователя для работы
+RUN useradd -m -s /bin/bash user && \
+    echo "user:user123" | chpasswd && \
+    usermod -aG sudo user || true
+
+# Копирование скрипта запуска
+COPY start-gui.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/start-gui.sh
+
+# Настройка рабочего стола
+USER user
+WORKDIR /home/user
+RUN mkdir -p Desktop Documents Downloads Images Music Videos
+
+# Возвращаемся к root для запуска
+USER root
+
+# Экспорт порта VNC
+EXPOSE 5900
+
+# Запуск GUI
+CMD ["/usr/local/bin/start-gui.sh"]
