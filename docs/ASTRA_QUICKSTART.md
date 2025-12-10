@@ -68,6 +68,27 @@ sudo ./create-astra-image.sh
 
 ## Troubleshooting
 
+### Система просит вставить CD-диск
+
+Если при установке пакетов система просит вставить диск:
+
+```bash
+# Запустите скрипт для отключения CD-репозитория
+./scripts/quickstart-astra-fix-cd.sh
+
+# Затем снова запустите основной скрипт
+./scripts/quickstart-astra.sh
+```
+
+Или вручную:
+
+```bash
+# Отключить CD-репозиторий
+echo 'Acquire::cdrom::AutoDetect "false";' | sudo tee /etc/apt/apt.conf.d/99no-cdrom
+sudo sed -i 's/^deb cdrom:/#deb cdrom:/' /etc/apt/sources.list
+sudo apt-get update
+```
+
 ### Ошибка при установке пакетов
 
 Если возникают проблемы с репозиториями:
@@ -78,6 +99,7 @@ sudo apt-get update
 
 # Проверить репозитории
 cat /etc/apt/sources.list
+ls /etc/apt/sources.list.d/
 ```
 
 ### Node.js не устанавливается

@@ -30,16 +30,72 @@ if [ "$EUID" -ne 0 ]; then
     echo ""
 fi
 
+# Отключение CD-репозитория если он мешает
+if grep -q "^deb cdrom:" /etc/apt/sources.list 2>/dev/null || \
+   find /etc/apt/sources.list.d -name "*.list" -exec grep -q "^deb cdrom:" {} \; 2>/dev/null; then
+    echo "🔧 Обнаружен CD-репозиторий, настраиваем использование только сетевых репозиториев..."
+    if [ ! -f /etc/apt/apt.conf.d/99no-cdrom ]; then
+        echo 'Acquire::cdrom::AutoDetect "false";' | sudo tee /etc/apt/apt.conf.d/99no-cdrom > /dev/null
+        echo 'Acquire::cdrom::mount "/dev/null";' | sudo tee -a /etc/apt/apt.conf.d/99no-cdrom > /dev/null
+        echo "✅ CD-репозиторий отключен для этой установки"
+    fi
+fi
+
 # Функция для установки пакетов
 install_package() {
     local package=$1
     if ! dpkg -l | grep -q "^ii.*$package"; then
         echo "📦 Установка $package..."
-        sudo apt-get update -qq
-        sudo apt-get install -y "$package" || {
-            echo "❌ Ошибка установки $package"
-            return 1
-        }
+        
+        # Обновляем список пакетов без CD-репозитория (тихо)
+        sudo apt-get update -qq -o Acquire::cdrom::AutoDetect=false 2>/dev/null || \
+        sudo apt-get update -qq 2>&1 | grep -v "Смена носителя" > /dev/null 2>&1 || true
+        
+        # Устанавливаем с максимально неинтерактивными опциями
+        # Перенаправляем stdin в /dev/null чтобы избежать зависания
+        echo "   (это может занять некоторое время...)"
+        
+        # Устанавливаем пакет с перенаправлением stdin и выводом прогресса
+        # Используем timeout для предотвращения бесконечного зависания
+        if timeout 300 bash -c "
+            export DEBIAN_FRONTEND=noninteractive
+            sudo -E apt-get install -y \
+                -o Dpkg::Options::='--force-confdef' \
+                -o Dpkg::Options::='--force-confold' \
+                -o Acquire::cdrom::AutoDetect=false \
+                -o Acquire::cdrom::mount=/dev/null \
+                -o APT::Get::Assume-Yes=true \
+                -o APT::Get::AllowUnauthenticated=false \
+                --no-install-recommends \
+                '$package' < /dev/null
+        " 2>&1 | while IFS= read -r line; do
+            # Показываем только важные сообщения
+            if echo "$line" | grep -qE "(Установка|Настройка|Готово|Setting up|Unpacking)"; then
+                echo "   $line"
+            fi
+        done; then
+            : # Успешно установлено
+        else
+            # Если не получилось или таймаут, пробуем без дополнительных опций
+            echo "   Повторная попытка без дополнительных опций..."
+            DEBIAN_FRONTEND=noninteractive \
+            timeout 300 sudo apt-get install -y "$package" < /dev/null > /dev/null 2>&1 || {
+                echo "   ⚠️  Таймаут или ошибка при установке $package"
+            }
+        fi
+        
+        # Проверяем, что пакет действительно установлен
+        if dpkg -l | grep -q "^ii.*$package"; then
+            echo "✅ $package установлен"
+        else
+            echo "⚠️  Повторная попытка установки $package..."
+            # Пробуем без дополнительных опций
+            DEBIAN_FRONTEND=noninteractive sudo apt-get install -y "$package" < /dev/null || {
+                echo "❌ Ошибка установки $package"
+                echo "💡 Попробуйте установить вручную: sudo apt-get install $package"
+                return 1
+            }
+        fi
     else
         echo "✅ $package уже установлен"
     fi
@@ -47,7 +103,14 @@ install_package() {
 
 # 1. Обновление списка пакетов
 echo "📋 Обновление списка пакетов..."
-sudo apt-get update -qq
+echo "   (это может занять некоторое время...)"
+# Пытаемся обновить без CD-репозитория
+sudo apt-get update -qq \
+    -o Acquire::cdrom::AutoDetect=false \
+    -o Acquire::cdrom::mount=/dev/null \
+    2>&1 | grep -vE "(Смена носителя|Reading|Building|Done|Get:|Fetched)" || \
+sudo apt-get update -qq 2>&1 | grep -v "Смена носителя" > /dev/null 2>&1 || true
+echo "✅ Список пакетов обновлён"
 
 # 2. Установка системных зависимостей
 echo ""
@@ -73,27 +136,78 @@ if ! command -v node &> /dev/null; then
     # Проверяем наличие NodeSource репозитория
     if [ ! -f /etc/apt/sources.list.d/nodesource.list ]; then
         echo "Добавление репозитория NodeSource..."
-        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+        # Добавляем репозиторий с игнорированием CD
+        curl -fsSL https://deb.nodesource.com/setup_18.x | \
+            sudo -E bash - 2>&1 | grep -v "Смена носителя" || true
+        
+        # Обновляем список пакетов после добавления репозитория
+        sudo apt-get update -qq -o Acquire::cdrom::AutoDetect=false 2>/dev/null || \
+        sudo apt-get update -qq 2>&1 | grep -v "Смена носителя" || true
     fi
-    install_package "nodejs"
+    
+    # Устанавливаем Node.js с игнорированием CD
+    echo "Установка nodejs из сетевых репозиториев..."
+    echo "   (это может занять некоторое время...)"
+    
+    # Устанавливаем nodejs с таймаутом и перенаправлением stdin
+    echo "   Установка nodejs (это может занять несколько минут)..."
+    if timeout 600 bash -c "
+        export DEBIAN_FRONTEND=noninteractive
+        sudo -E apt-get install -y \
+            -o Dpkg::Options::='--force-confdef' \
+            -o Dpkg::Options::='--force-confold' \
+            -o Acquire::cdrom::AutoDetect=false \
+            -o Acquire::cdrom::mount=/dev/null \
+            -o APT::Get::Assume-Yes=true \
+            nodejs < /dev/null
+    " 2>&1 | while IFS= read -r line; do
+        if echo "$line" | grep -qE "(Установка|Настройка|Готово|Setting up|Unpacking|Selecting)"; then
+            echo "   $line"
+        fi
+    done; then
+        : # Успешно
+    else
+        echo "   Повторная попытка без дополнительных опций..."
+        timeout 600 bash -c "
+            export DEBIAN_FRONTEND=noninteractive
+            sudo apt-get install -y nodejs < /dev/null
+        " > /dev/null 2>&1 || echo "   ⚠️  Ошибка установки nodejs"
+    fi
+    
+    # Проверяем установку
+    if ! command -v node &> /dev/null; then
+        echo "⚠️  Попытка установки без дополнительных опций..."
+        DEBIAN_FRONTEND=noninteractive sudo apt-get install -y nodejs < /dev/null
+    fi
+    
+    if command -v node &> /dev/null; then
+        echo "✅ Node.js установлен: $(node --version)"
+    else
+        echo "❌ Не удалось установить Node.js автоматически"
+        echo "💡 Попробуйте установить вручную: sudo apt-get install nodejs"
+    fi
 else
     NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
     echo "✅ Node.js установлен: $(node --version)"
     if [ "$NODE_VERSION" -lt 18 ]; then
         echo "⚠️  Требуется Node.js 18+, текущая версия: $(node --version)"
-        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-        install_package "nodejs"
+        echo "💡 Обновление Node.js может потребовать ручной установки"
     fi
 fi
 
 # Podman
 if ! command -v podman &> /dev/null; then
     echo "📦 Установка Podman..."
-    install_package "podman"
-    
-    # Настройка rootless режима
-    echo "⚙️  Настройка rootless режима Podman..."
-    podman system migrate 2>/dev/null || echo "⚠️  Не удалось настроить rootless режим (может потребоваться перезагрузка)"
+    # Пробуем установить podman или docker.io (в Astra Linux может быть docker.io)
+    if install_package "podman"; then
+        # Настройка rootless режима
+        echo "⚙️  Настройка rootless режима Podman..."
+        podman system migrate 2>/dev/null || echo "⚠️  Не удалось настроить rootless режим (может потребоваться перезагрузка)"
+    else
+        echo "⚠️  Podman не найден в репозиториях"
+        echo "💡 В Astra Linux может использоваться docker.io вместо podman"
+        echo "💡 Или установите podman вручную из репозиториев"
+    fi
 else
     echo "✅ Podman установлен: $(podman --version)"
 fi
