@@ -26,7 +26,7 @@ IMAGE_NAME="${IMAGE_NAME:-astra-linux:se}"
 CHROOT_DIR="${CHROOT_DIR:-/var/docker-chroot}"
 
 # Fallback образ из реестра Astra Linux
-FALLBACK_IMAGE="${FALLBACK_IMAGE:-registry.astralinux.ru/library/astra/ubi18:1.8.1}"
+FALLBACK_IMAGE="${FALLBACK_IMAGE:-registry.astralinux.ru/library/astra/ubi18@sha256:850a91072ae82fcd7c718e979d044bd8f4a218a1f7938c23d98d019e1b5e7bfa}"
 
 echo "🔨 Создание образа Astra Linux для тренажёра"
 echo "Кодовое имя: $CODENAME"
@@ -39,9 +39,28 @@ echo ""
 
 # Проверка прав
 if [ "$EUID" -ne 0 ]; then 
+    echo "⚠️  Скрипт требует прав root для создания chroot окружения"
+    echo ""
+    echo "💡 Альтернатива: используйте rootless режим (без sudo):"
+    echo "   ./create-astra-image-rootless.sh"
+    echo ""
+    read -p "Продолжить с sudo? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
     echo "❌ Скрипт должен запускаться с правами root (sudo)"
     exit 1
 fi
+
+# Определяем пользователя, который запустил sudo
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_UID="${SUDO_UID:-$(id -u)}"
+REAL_GID="${SUDO_GID:-$(id -g)}"
+
+echo "ℹ️  Создание образа для пользователя: $REAL_USER (UID: $REAL_UID)"
+echo "⚠️  Образ будет создан от root, но будет экспортирован для $REAL_USER"
+echo ""
 
 # Проверка установленных пакетов
 echo "Проверка зависимостей..."
@@ -262,13 +281,22 @@ for img_name in "localhost/$IMAGE_NAME" "$IMAGE_NAME"; do
 done || echo "⚠️  Не удалось получить информацию об образе"
 
 echo ""
-echo "💡 Тестовый запуск:"
-echo "   # Вариант 1 (с localhost/):"
-echo "   podman run --rm -it localhost/$IMAGE_NAME /bin/bash"
+echo "⚠️  ВАЖНО: Образ создан от root!"
+echo "Для использования от пользователя $REAL_USER выполните:"
 echo ""
-echo "   # Вариант 2 (по ID):"
-echo "   podman run --rm -it \$(podman images --format '{{.ID}}' | head -1) /bin/bash"
+echo "  # Вариант 1: Автоматическое исправление (рекомендуется)"
+echo "  sudo -u $REAL_USER ./fix-podman-images.sh"
 echo ""
-echo "   # Вариант 3 (если настроены unqualified-search registries):"
-echo "   podman run --rm -it $IMAGE_NAME /bin/bash"
+echo "  # Вариант 2: Ручной экспорт/импорт"
+echo "  sudo podman save -o /tmp/astra-linux.tar localhost/$IMAGE_NAME"
+echo "  sudo chown $REAL_USER:$REAL_USER /tmp/astra-linux.tar"
+echo "  sudo -u $REAL_USER podman load -i /tmp/astra-linux.tar"
+echo "  sudo -u $REAL_USER podman tag \$(sudo -u $REAL_USER podman images --format '{{.ID}}' | head -1) localhost/$IMAGE_NAME"
+echo "  rm /tmp/astra-linux.tar"
+echo ""
+echo "💡 Или создайте образ в rootless режиме:"
+echo "  sudo -u $REAL_USER ./create-astra-image-rootless.sh"
+echo ""
+echo "💡 Тестовый запуск от root:"
+echo "  podman run --rm -it localhost/$IMAGE_NAME /bin/bash"
 

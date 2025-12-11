@@ -12,6 +12,7 @@ class CreateSandboxRequest(BaseModel):
     mission_id: str
     level: str
     image: str = "localhost/astra-linux:se"  # Используем localhost/ для локальных образов
+    use_vnc: bool = True  # Включить VNC по умолчанию
 
 
 @router.post("/sandbox/create")
@@ -20,13 +21,15 @@ async def create_sandbox(request: CreateSandboxRequest) -> Dict[str, Any]:
     sandbox = await sandbox_manager.create_sandbox(
         request.mission_id,
         request.level,
-        request.image
+        request.image,
+        request.use_vnc
     )
     
     if not sandbox:
         raise HTTPException(status_code=500, detail="Не удалось создать песочницу")
     
     info = await sandbox.get_info()
+    vnc_url = await sandbox.get_vnc_url() if sandbox.use_vnc else None
     
     return {
         "mission_id": request.mission_id,
@@ -34,6 +37,8 @@ async def create_sandbox(request: CreateSandboxRequest) -> Dict[str, Any]:
         "container_id": sandbox.container_id,
         "status": sandbox.status,
         "vnc_port": sandbox.vnc_port,
+        "novnc_port": sandbox.novnc_port,
+        "vnc_url": vnc_url,
         "info": info
     }
 
@@ -47,6 +52,7 @@ async def get_sandbox(mission_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail="Песочница не найдена")
     
     info = await sandbox.get_info()
+    vnc_url = await sandbox.get_vnc_url() if hasattr(sandbox, 'use_vnc') and sandbox.use_vnc else None
     
     return {
         "mission_id": mission_id,
@@ -54,7 +60,34 @@ async def get_sandbox(mission_id: str) -> Dict[str, Any]:
         "container_id": sandbox.container_id,
         "status": sandbox.status,
         "vnc_port": sandbox.vnc_port,
+        "novnc_port": getattr(sandbox, 'novnc_port', None),
+        "vnc_url": vnc_url,
         "info": info
+    }
+
+
+@router.get("/sandbox/{mission_id}/vnc")
+async def get_vnc_info(mission_id: str) -> Dict[str, Any]:
+    """Получить информацию о VNC подключении"""
+    sandbox = await sandbox_manager.get_sandbox(mission_id)
+    
+    if not sandbox:
+        raise HTTPException(status_code=404, detail="Песочница не найдена")
+    
+    if not hasattr(sandbox, 'use_vnc') or not sandbox.use_vnc:
+        raise HTTPException(status_code=400, detail="VNC не включен для этой песочницы")
+    
+    vnc_url = await sandbox.get_vnc_url()
+    
+    if not vnc_url:
+        raise HTTPException(status_code=503, detail="VNC сервер не готов")
+    
+    return {
+        "mission_id": mission_id,
+        "vnc_port": sandbox.vnc_port,
+        "novnc_port": sandbox.novnc_port,
+        "vnc_url": vnc_url,
+        "ready": True
     }
 
 

@@ -129,7 +129,9 @@ npm start
 - ✅ 10 миссий (5 уровня A, 3 уровня B, 2 уровня C)
 - ✅ Система проверки заданий (Grader)
 - ✅ Система прогресса и достижений
-- 🚧 Интеграция VNC/терминала
+- ✅ Интеграция VNC для GUI-миссий (TigerVNC + noVNC)
+- ✅ Автоматический запуск VNC в контейнерах
+- 🚧 Интеграция терминала (xterm.js)
 - 🚧 Расширение набора миссий
 
 ## 🔒 Безопасность
@@ -154,6 +156,12 @@ npm start
 
 ### Решение проблем
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - **Решение распространённых проблем**
+- [PODMAN_QUICK_FIX.md](PODMAN_QUICK_FIX.md) - **Быстрое решение проблем с образами Podman**
+- [docs/PODMAN_IMAGE_FIX.md](docs/PODMAN_IMAGE_FIX.md) - Подробная информация о проблемах с Podman
+
+### VNC и GUI
+- [VNC_QUICKSTART.md](VNC_QUICKSTART.md) - **Быстрый старт с VNC для GUI-миссий**
+- [docs/VNC_INTEGRATION.md](docs/VNC_INTEGRATION.md) - Подробная документация по VNC интеграции
 
 ### Дополнительно
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Руководство по вкладу

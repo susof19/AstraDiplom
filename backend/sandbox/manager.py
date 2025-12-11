@@ -21,7 +21,7 @@ class SandboxManager:
         self.sandboxes: Dict[str, ContainerSandbox] = {}
         self._cleanup_task: Optional[asyncio.Task] = None
         
-    async def create_sandbox(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se") -> Optional[ContainerSandbox]:
+    async def create_sandbox(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se", use_vnc: bool = True) -> Optional[ContainerSandbox]:
         """Создать новую песочницу для миссии"""
         # Проверяем, нет ли уже активной песочницы для этой миссии
         existing = self.sandboxes.get(mission_id)
@@ -35,11 +35,18 @@ class SandboxManager:
         
         # Создаём новую (используем mock в режиме разработки)
         if settings.MOCK_SANDBOX:
-            sandbox = MockSandbox(mission_id, level, image)
+            sandbox = MockSandbox(mission_id, level, image, use_vnc)
         else:
-            sandbox = ContainerSandbox(mission_id, level, image)
+            sandbox = ContainerSandbox(mission_id, level, image, use_vnc)
         
         if await sandbox.create():
+            # Для GUI миссий ждём готовности VNC
+            if use_vnc and (level == "A" or sandbox.use_vnc):
+                logger.info(f"Ожидание запуска VNC сервера для миссии {mission_id}...")
+                vnc_ready = await sandbox.wait_for_vnc(timeout=60)
+                if not vnc_ready:
+                    logger.warning(f"VNC сервер не запустился для миссии {mission_id}")
+            
             self.sandboxes[mission_id] = sandbox
             logger.info(f"Песочница создана для миссии {mission_id}")
             return sandbox

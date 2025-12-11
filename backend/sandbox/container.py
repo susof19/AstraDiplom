@@ -16,17 +16,29 @@ logger = logging.getLogger(__name__)
 class ContainerSandbox:
     """Управление изолированным контейнером для миссии"""
     
-    def __init__(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se"):
+    def __init__(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se", use_vnc: bool = True):
         self.mission_id = mission_id
         self.level = level
+        self.use_vnc = use_vnc
+        
         # Нормализуем имя образа: если нет префикса, добавляем localhost/
         if "/" not in image and ":" in image:
             self.image = f"localhost/{image}"
         else:
             self.image = image
+        
+        # Если требуется VNC и образ не содержит :vnc, используем VNC образ
+        if use_vnc and ":vnc" not in self.image:
+            # Заменяем :se на :vnc или добавляем :vnc
+            if ":se" in self.image:
+                self.image = self.image.replace(":se", ":vnc")
+            elif ":" not in self.image.split("/")[-1]:
+                self.image = f"{self.image}:vnc"
+        
         self.container_name = f"astra-trainer-{mission_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         self.container_id: Optional[str] = None
         self.vnc_port: Optional[int] = None
+        self.novnc_port: Optional[int] = None
         self.status: str = "created"
         
     async def create(self) -> bool:
@@ -59,13 +71,21 @@ class ContainerSandbox:
                 ])
             
             # Для уровня A добавляем GUI (VNC)
-            if self.level == "A":
-                # Находим свободный порт
+            if self.level == "A" or self.use_vnc:
+                # Находим свободные порты для VNC и noVNC
                 self.vnc_port = await self._find_free_port(settings.VNC_PORT_START)
+                self.novnc_port = await self._find_free_port(settings.NOVNC_PORT_START)
+                
                 cmd.extend([
-                    "-p", f"{self.vnc_port}:5900",
+                    "-p", f"{self.vnc_port}:5900",  # TigerVNC порт
+                    "-p", f"{self.novnc_port}:6080",  # noVNC порт
                     "-e", "DISPLAY=:0",
+                    "-e", f"VNC_PORT=5900",
+                    "-e", f"NOVNC_PORT=6080",
+                    "-e", f"VNC_RESOLUTION={settings.VNC_RESOLUTION}",
                 ])
+                
+                logger.info(f"VNC порты: VNC={self.vnc_port}, noVNC={self.novnc_port}")
             
             # Монтируем read-only миссию и данные
             mission_dir = settings.MISSIONS_DIR / f"level_{self.level.lower()}" / self.mission_id
@@ -201,10 +221,53 @@ class ContainerSandbox:
             )
             stdout, _ = await result.communicate()
             data = json.loads(stdout.decode())
-            return data[0] if data else {}
+            container_info = data[0] if data else {}
+            
+            # Добавляем информацию о VNC портах
+            if self.vnc_port or self.novnc_port:
+                container_info["vnc_info"] = {
+                    "vnc_port": self.vnc_port,
+                    "novnc_port": self.novnc_port,
+                    "novnc_url": f"http://localhost:{self.novnc_port}/vnc.html" if self.novnc_port else None,
+                    "enabled": True
+                }
+            
+            return container_info
         except Exception as e:
             logger.error(f"Ошибка получения информации: {e}")
             return {}
+    
+    async def get_vnc_url(self) -> Optional[str]:
+        """Получить URL для подключения к noVNC"""
+        if not self.novnc_port:
+            return None
+        return f"http://localhost:{self.novnc_port}/vnc.html"
+    
+    async def wait_for_vnc(self, timeout: int = 60) -> bool:
+        """Ожидание готовности VNC сервера"""
+        if not self.novnc_port:
+            return False
+        
+        import socket
+        start_time = asyncio.get_event_loop().time()
+        
+        while (asyncio.get_event_loop().time() - start_time) < timeout:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                result = sock.connect_ex(('127.0.0.1', self.novnc_port))
+                sock.close()
+                
+                if result == 0:
+                    logger.info(f"VNC сервер готов на порту {self.novnc_port}")
+                    return True
+            except Exception:
+                pass
+            
+            await asyncio.sleep(2)
+        
+        logger.warning(f"VNC сервер не запустился за {timeout} секунд")
+        return False
     
     async def _find_free_port(self, start_port: int) -> int:
         """Найти свободный порт"""

@@ -12,10 +12,18 @@ logger = __import__("logging").getLogger(__name__)
 class MockSandbox(ContainerSandbox):
     """Mock-реализация песочницы для тестирования без Podman"""
     
-    def __init__(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se"):
-        super().__init__(mission_id, level, image)
+    def __init__(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se", use_vnc: bool = True):
+        super().__init__(mission_id, level, image, use_vnc)
         self.container_id = f"mock-{mission_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        self.vnc_port = 5900 + random.randint(1, 100) if level == "A" else None
+        
+        # Mock VNC порты
+        if use_vnc or level == "A":
+            self.vnc_port = 5900 + random.randint(1, 100)
+            self.novnc_port = 6080 + random.randint(1, 100)
+        else:
+            self.vnc_port = None
+            self.novnc_port = None
+            
         self._mock_files: Dict[str, str] = {}  # Mock файловая система
         self._mock_processes: list = []
         
@@ -105,17 +113,40 @@ class MockSandbox(ContainerSandbox):
     
     async def get_info(self) -> Dict[str, Any]:
         """Получить информацию о mock-контейнере"""
-        return {
+        info = {
             "Id": self.container_id,
             "Name": self.container_name,
             "State": {"Status": self.status},
             "Config": {"Image": self.image},
             "NetworkSettings": {
                 "Ports": {
-                    "5900/tcp": [{"HostPort": str(self.vnc_port)}] if self.vnc_port else None
+                    "5900/tcp": [{"HostPort": str(self.vnc_port)}] if self.vnc_port else None,
+                    "6080/tcp": [{"HostPort": str(self.novnc_port)}] if self.novnc_port else None
                 }
             }
         }
+        
+        # Добавляем информацию о VNC
+        if self.vnc_port or self.novnc_port:
+            info["vnc_info"] = {
+                "vnc_port": self.vnc_port,
+                "novnc_port": self.novnc_port,
+                "novnc_url": f"http://localhost:{self.novnc_port}/vnc.html" if self.novnc_port else None,
+                "enabled": True
+            }
+        
+        return info
+    
+    async def get_vnc_url(self) -> Optional[str]:
+        """Получить URL для подключения к noVNC (mock)"""
+        if not self.novnc_port:
+            return None
+        return f"http://localhost:{self.novnc_port}/vnc.html"
+    
+    async def wait_for_vnc(self, timeout: int = 60) -> bool:
+        """Ожидание готовности VNC сервера (mock - всегда готов)"""
+        await asyncio.sleep(1)  # Имитация задержки
+        return True if self.novnc_port else False
     
     def set_mock_file(self, path: str, content: str = ""):
         """Установить mock-файл для тестирования"""

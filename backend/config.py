@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     
     # VNC/noVNC настройки
     VNC_PORT_START: int = 5900
+    NOVNC_PORT_START: int = 6080
     VNC_PASSWORD: str = "astra123"  # TODO: генерировать случайно
+    VNC_RESOLUTION: str = "1280x720"
     
     # API настройки
     API_HOST: str = "0.0.0.0"
