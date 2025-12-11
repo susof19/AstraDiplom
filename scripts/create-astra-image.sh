@@ -1,5 +1,6 @@
 #!/bin/bash
-# Скрипт создания образа Astra Linux для тренажёра
+# Скрипт создания образа контейнера для тренажёра
+# Поддерживает создание образов на базе Astra Linux или Debian
 # Поддерживает создание базового образа и образа с VNC
 
 set -e
@@ -84,7 +85,7 @@ else
     IMAGE_NAME="astra-linux:se"
 fi
 
-echo "🔨 Создание образа Astra Linux для тренажёра"
+echo "🔨 Создание образа контейнера для тренажёра"
 echo "Режим: $([ "$USE_ROOTLESS" = true ] && echo "rootless (из реестра)" || echo "с sudo (debootstrap)")"
 echo "VNC: $([ "$USE_VNC" = true ] && echo "включен" || echo "выключен")"
 echo "Итоговый образ: localhost/$IMAGE_NAME"

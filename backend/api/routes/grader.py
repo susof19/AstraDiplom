@@ -1,18 +1,22 @@
 """Роуты для проверки миссий"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
 
 from backend.grader.checker import Grader
 from backend.sandbox.manager import sandbox_manager
+from backend.models.progress import get_user_progress
+from backend.auth.dependencies import get_current_user
 
 router = APIRouter()
 
 
 @router.post("/grader/check/{mission_id}")
-async def check_mission(mission_id: str, level: str, user_id: str = "default") -> Dict[str, Any]:
+async def check_mission(
+    mission_id: str, 
+    level: str, 
+    username: str = Depends(get_current_user)
+) -> Dict[str, Any]:
     """Проверить выполнение миссии"""
-    from backend.models.progress import get_user_progress
-    
     sandbox = await sandbox_manager.get_sandbox(mission_id)
     
     if not sandbox:
@@ -23,9 +27,11 @@ async def check_mission(mission_id: str, level: str, user_id: str = "default") -
     # Сохраняем прогресс, если миссия выполнена
     if result.get("result") in ["passed", "partial"]:
         score = result.get("score", 0)
-        progress = get_user_progress(user_id)
+        progress = get_user_progress(username)
+        old_achievements = set(progress.achievements)
         progress.complete_mission(mission_id, level, score)
-        result["new_achievements"] = progress.achievements
+        new_achievements = set(progress.achievements) - old_achievements
+        result["new_achievements"] = list(new_achievements)
     
     return result
 

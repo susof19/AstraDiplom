@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     
     # Безопасность
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    JWT_SECRET_KEY: str = "astra-linux-training-simulator-secret-key-change-in-production"  # В продакшене через .env
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_DAYS: int = 7
     
     # Режим разработки (для Windows/тестирования без Podman)
     MOCK_SANDBOX: bool = False  # Использовать mock-песочницы вместо реальных контейнеров

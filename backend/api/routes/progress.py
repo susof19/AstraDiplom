@@ -1,16 +1,17 @@
 """Роуты для работы с прогрессом"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
 
 from backend.models.progress import get_user_progress
+from backend.auth.dependencies import get_current_user
 
 router = APIRouter()
 
 
 @router.get("/progress")
-async def get_progress(user_id: str = "default") -> Dict[str, Any]:
+async def get_progress(username: str = Depends(get_current_user)) -> Dict[str, Any]:
     """Получить прогресс пользователя"""
-    progress = get_user_progress(user_id)
+    progress = get_user_progress(username)
     return progress.get_stats()
 
 
@@ -19,31 +20,30 @@ async def complete_mission(
     mission_id: str,
     level: str,
     score: int,
-    user_id: str = "default"
+    username: str = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """Отметить миссию как выполненную"""
     if score < 0 or score > 100:
         raise HTTPException(status_code=400, detail="Оценка должна быть от 0 до 100")
     
-    progress = get_user_progress(user_id)
+    progress = get_user_progress(username)
+    old_achievements = set(progress.achievements)
     progress.complete_mission(mission_id, level, score)
+    new_achievements = set(progress.achievements) - old_achievements
     
     return {
         "status": "success",
         "mission_id": mission_id,
         "score": score,
         "total_score": progress.total_score,
-        "new_achievements": [
-            a for a in progress.achievements 
-            if a not in get_user_progress(user_id).achievements
-        ]
+        "new_achievements": list(new_achievements)
     }
 
 
 @router.get("/progress/achievements")
-async def get_achievements(user_id: str = "default") -> Dict[str, Any]:
+async def get_achievements(username: str = Depends(get_current_user)) -> Dict[str, Any]:
     """Получить список достижений"""
-    progress = get_user_progress(user_id)
+    progress = get_user_progress(username)
     
     achievement_names = {
         "first_mission": "Первая миссия",

@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 import logging
 
 from backend.config import settings
-from backend.api.routes import missions, sandbox, grader, progress
+from backend.api.routes import missions, sandbox, grader, progress, auth
 from backend.sandbox.manager import sandbox_manager
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +27,7 @@ app.add_middleware(
 )
 
 # Подключаем роуты
+app.include_router(auth.router, prefix=settings.API_PREFIX, tags=["auth"])
 app.include_router(missions.router, prefix=settings.API_PREFIX, tags=["missions"])
 app.include_router(sandbox.router, prefix=settings.API_PREFIX, tags=["sandbox"])
 app.include_router(grader.router, prefix=settings.API_PREFIX, tags=["grader"])

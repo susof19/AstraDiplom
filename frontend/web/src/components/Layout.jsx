@@ -1,15 +1,32 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getProgress } from '../api/missions'
+import { useAuth } from '../contexts/AuthContext'
 import './Layout.css'
 
 function Layout({ children }) {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { user, logout, isAuthenticated } = useAuth()
+  
+  // Не показываем Layout на страницах аутентификации
+  const isAuthPage = ['/login', '/register', '/recover-password'].includes(location.pathname)
+  
+  if (isAuthPage) {
+    return <>{children}</>
+  }
+  
   const { data: progress } = useQuery({
     queryKey: ['progress'],
     queryFn: () => getProgress(),
-    retry: false
+    retry: false,
+    enabled: isAuthenticated
   })
+  
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
 
   const stats = progress || {
     total_score: 0,
@@ -29,6 +46,11 @@ function Layout({ children }) {
           </Link>
           <div className="header-stats">
             <div className="stat-item">
+              <span className="stat-icon">👤</span>
+              <span className="stat-label">Пользователь:</span>
+              <span className="stat-value">{user?.username || 'Гость'}</span>
+            </div>
+            <div className="stat-item">
               <span className="stat-icon">🏆</span>
               <span className="stat-label">Уровень:</span>
               <span className="stat-value">{level}</span>
@@ -43,6 +65,9 @@ function Layout({ children }) {
               <span className="stat-label">Миссий:</span>
               <span className="stat-value">{totalMissions}</span>
             </div>
+            <button onClick={handleLogout} className="logout-button">
+              Выйти
+            </button>
           </div>
         </div>
         <div className="header-status">
