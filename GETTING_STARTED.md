@@ -276,6 +276,25 @@ cd /путь/к/AstraDiplom
 bash scripts/create-astra-image.sh --vnc
 ```
 
+### Ошибка при сборке VNC образа: "no such file or directory"
+
+**Проблема**: При сборке образа появляется ошибка `COPY start-vnc-simple.sh /usr/local/bin/start-vnc.sh: no such file or directory`
+
+**Причина**: Dockerfile использует относительные пути, которые должны быть указаны относительно контекста сборки (корня проекта).
+
+**Решение**: Все Dockerfile уже исправлены и используют правильные пути `images/start-vnc.sh` и `images/supervisord.conf`. Если ошибка повторяется:
+
+```bash
+# Убедитесь, что файлы существуют
+ls -la images/start-vnc*.sh images/supervisord*.conf
+
+# Пересоберите образ
+cd scripts
+sudo bash create-astra-image.sh --vnc
+
+# Выберите вариант 1 (упрощенный) или 2 (Debian 12)
+```
+
 ### Ошибка "Не удалось загрузить образ из реестра"
 
 **Решение**:

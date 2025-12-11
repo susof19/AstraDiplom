@@ -123,14 +123,14 @@ RUN mkdir -p /home/astrauser/.config/xfce4/xfconf/xfce-perchannel-xml && \
 USER root
 
 # Создание скрипта запуска VNC
-COPY start-vnc.sh /usr/local/bin/start-vnc.sh
+COPY images/start-vnc.sh /usr/local/bin/start-vnc.sh
 RUN chmod +x /usr/local/bin/start-vnc.sh
 
 # Создание конфигурации supervisor
 RUN mkdir -p /var/log/supervisor && \
     mkdir -p /etc/supervisor/conf.d
 
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY images/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Открытие портов
 EXPOSE 5900 6080

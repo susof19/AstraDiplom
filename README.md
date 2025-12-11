@@ -159,6 +159,7 @@ npm start
 
 ### 🚀 Начало работы
 - **[GETTING_STARTED.md](GETTING_STARTED.md)** - Полное руководство по установке и использованию
+- **[DEMO_GUIDE.md](DEMO_GUIDE.md)** - Руководство для демонстрации на дипломе
 
 ### Установка на разных системах
 - [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md) - Установка на Astra Linux

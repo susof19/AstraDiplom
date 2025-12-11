@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astra Linux Training Simulator - VNC</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        
+        .status {
+            display: inline-block;
+            background: #4caf50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        
+        .info {
+            background: #f5f5f5;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 5px;
+        }
+        
+        .info h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .info p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        
+        .code {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+            text-align: left;
+            overflow-x: auto;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .warning p {
+            color: #856404;
+            margin: 0;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #999;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖥️ Astra Linux Training Simulator</h1>
+        <div class="status">✓ Песочница запущена</div>
+        
+        <div class="info">
+            <h3>📋 Информация о системе</h3>
+            <p><strong>Образ:</strong> Astra Linux (упрощенная версия)</p>
+            <p><strong>Пользователь:</strong> astrauser</p>
+            <p><strong>Пароль:</strong> astra123</p>
+        </div>
+        
+        <div class="warning">
+            <p><strong>⚠️ Примечание:</strong> Это упрощенная версия образа. Для полноценной работы с GUI используйте образ на базе Debian 12.</p>
+        </div>
+        
+        <div class="info">
+            <h3>🚀 Как использовать полную версию VNC</h3>
+            <p>Для создания образа с полноценным VNC и XFCE выполните:</p>
+            <div class="code">cd scripts<br>sudo bash create-astra-image.sh --vnc</div>
+            <p>Затем выберите вариант 2 (Debian 12) для полной функциональности.</p>
+        </div>
+        
+        <div class="info">
+            <h3>🔧 Доступные команды</h3>
+            <p>Вы можете выполнять команды в этой песочнице через API:</p>
+            <div class="code">POST /sandbox/{mission_id}/execute<br>{"command": "ls -la"}</div>
+        </div>
+        
+        <div class="footer">
+            <p>Astra Linux Training Simulator v1.0</p>
+            <p>Для дипломной работы</p>
+        </div>
+    </div>
+</body>
+</html>
+

@@ -58,13 +58,13 @@ RUN useradd -m -s /bin/bash astrauser && \
 
 # Создание простого скрипта запуска (без VNC, только noVNC для демонстрации)
 RUN mkdir -p /usr/local/bin
-COPY start-vnc-simple.sh /usr/local/bin/start-vnc.sh
+COPY images/start-vnc-simple.sh /usr/local/bin/start-vnc.sh
 RUN chmod +x /usr/local/bin/start-vnc.sh
 
 # Конфигурация supervisor
 RUN mkdir -p /var/log/supervisor /etc/supervisor/conf.d
 
-COPY supervisord-simple.conf /etc/supervisor/conf.d/supervisord.conf
+COPY images/supervisord-simple.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Открытие портов
 EXPOSE 6080

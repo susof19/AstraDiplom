@@ -130,7 +130,7 @@ if [ "$USE_ROOTLESS" = true ]; then
                     echo "❌ Файл images/Dockerfile.astra-vnc-simple не найден"
                     exit 1
                 fi
-                
+
                 # Сборка
                 podman build \
                     --build-arg BASE_IMAGE="$FALLBACK_IMAGE" \
@@ -222,8 +222,8 @@ if [ "$USE_ROOTLESS" = true ]; then
     echo ""
     echo "📋 Доступные образы:"
     podman images | grep -E "REPOSITORY|astra-linux" || podman images | head -5
-    
-    echo ""
+        
+        echo ""
     echo "💡 Тестовый запуск:"
     if [ "$USE_VNC" = true ]; then
         echo "   podman run -d -p 5900:5900 -p 6080:6080 --name astra-test localhost/$IMAGE_NAME"
