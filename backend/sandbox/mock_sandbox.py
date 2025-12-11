@@ -12,7 +12,7 @@ logger = __import__("logging").getLogger(__name__)
 class MockSandbox(ContainerSandbox):
     """Mock-реализация песочницы для тестирования без Podman"""
     
-    def __init__(self, mission_id: str, level: str, image: str = "astra-linux:latest"):
+    def __init__(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se"):
         super().__init__(mission_id, level, image)
         self.container_id = f"mock-{mission_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         self.vnc_port = 5900 + random.randint(1, 100) if level == "A" else None

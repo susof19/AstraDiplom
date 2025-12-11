@@ -45,7 +45,7 @@ chmod +x scripts/quickstart-astra.sh
 
 Скрипт автоматически установит все зависимости и создаст ярлык для запуска.
 
-См. [docs/ASTRA_QUICKSTART.md](docs/ASTRA_QUICKSTART.md) для подробностей.
+См. [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md) для подробностей.
 
 ### Для других Linux дистрибутивов
 
@@ -142,13 +142,20 @@ npm start
 
 ## 📚 Документация
 
-- [docs/ASTRA_QUICKSTART.md](docs/ASTRA_QUICKSTART.md) - **Быстрый старт на Astra Linux (автоматическая установка)**
+### Быстрый старт
+- [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md) - **Установка и настройка на Astra Linux**
 - [QUICKSTART.md](QUICKSTART.md) - Быстрый старт для других систем
+- [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows
+
+### Техническая документация
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Архитектура системы
 - [docs/SETUP.md](docs/SETUP.md) - Детальная настройка
-- [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows
-- [docs/ASTRA_LINUX_SETUP.md](docs/ASTRA_LINUX_SETUP.md) - Настройка для Astra Linux Special Edition
 - [docs/MISSIONS.md](docs/MISSIONS.md) - Создание миссий
+
+### Решение проблем
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - **Решение распространённых проблем**
+
+### Дополнительно
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Руководство по вкладу
 
 ## 🎮 Текущие миссии

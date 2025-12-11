@@ -21,7 +21,7 @@ class SandboxManager:
         self.sandboxes: Dict[str, ContainerSandbox] = {}
         self._cleanup_task: Optional[asyncio.Task] = None
         
-    async def create_sandbox(self, mission_id: str, level: str, image: str = "astra-linux:latest") -> Optional[ContainerSandbox]:
+    async def create_sandbox(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se") -> Optional[ContainerSandbox]:
         """Создать новую песочницу для миссии"""
         # Проверяем, нет ли уже активной песочницы для этой миссии
         existing = self.sandboxes.get(mission_id)

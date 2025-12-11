@@ -16,10 +16,14 @@ logger = logging.getLogger(__name__)
 class ContainerSandbox:
     """Управление изолированным контейнером для миссии"""
     
-    def __init__(self, mission_id: str, level: str, image: str = "astra-linux:latest"):
+    def __init__(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se"):
         self.mission_id = mission_id
         self.level = level
-        self.image = image
+        # Нормализуем имя образа: если нет префикса, добавляем localhost/
+        if "/" not in image and ":" in image:
+            self.image = f"localhost/{image}"
+        else:
+            self.image = image
         self.container_name = f"astra-trainer-{mission_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         self.container_id: Optional[str] = None
         self.vnc_port: Optional[int] = None

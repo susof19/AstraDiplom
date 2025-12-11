@@ -41,61 +41,39 @@ if grep -q "^deb cdrom:" /etc/apt/sources.list 2>/dev/null || \
     fi
 fi
 
+# Игнорирование ошибок с репозиториями при обновлении
+echo "📋 Обновление списка пакетов..."
+sudo apt-get update -qq -o Acquire::cdrom::AutoDetect=false 2>/dev/null || \
+sudo apt-get update -qq 2>&1 | grep -vE "(Смена носителя|Release|не содержит)" || {
+    echo "⚠️  Некоторые репозитории недоступны, продолжаем..."
+    true
+}
+
 # Функция для установки пакетов
 install_package() {
     local package=$1
     if ! dpkg -l | grep -q "^ii.*$package"; then
         echo "📦 Установка $package..."
         
-        # Обновляем список пакетов без CD-репозитория (тихо)
-        sudo apt-get update -qq -o Acquire::cdrom::AutoDetect=false 2>/dev/null || \
-        sudo apt-get update -qq 2>&1 | grep -v "Смена носителя" > /dev/null 2>&1 || true
+        # Обновляем список пакетов без CD-репозитория
+        sudo apt-get update -qq -o Acquire::cdrom::AutoDetect=false 2>/dev/null || sudo apt-get update -qq
         
-        # Устанавливаем с максимально неинтерактивными опциями
-        # Перенаправляем stdin в /dev/null чтобы избежать зависания
-        echo "   (это может занять некоторое время...)"
-        
-        # Устанавливаем пакет с перенаправлением stdin и выводом прогресса
-        # Используем timeout для предотвращения бесконечного зависания
-        if timeout 300 bash -c "
-            export DEBIAN_FRONTEND=noninteractive
-            sudo -E apt-get install -y \
-                -o Dpkg::Options::='--force-confdef' \
-                -o Dpkg::Options::='--force-confold' \
-                -o Acquire::cdrom::AutoDetect=false \
-                -o Acquire::cdrom::mount=/dev/null \
-                -o APT::Get::Assume-Yes=true \
-                -o APT::Get::AllowUnauthenticated=false \
-                --no-install-recommends \
-                '$package' < /dev/null
-        " 2>&1 | while IFS= read -r line; do
-            # Показываем только важные сообщения
-            if echo "$line" | grep -qE "(Установка|Настройка|Готово|Setting up|Unpacking)"; then
-                echo "   $line"
-            fi
-        done; then
-            : # Успешно установлено
-        else
-            # Если не получилось или таймаут, пробуем без дополнительных опций
-            echo "   Повторная попытка без дополнительных опций..."
-            DEBIAN_FRONTEND=noninteractive \
-            timeout 300 sudo apt-get install -y "$package" < /dev/null > /dev/null 2>&1 || {
-                echo "   ⚠️  Таймаут или ошибка при установке $package"
-            }
-        fi
-        
-        # Проверяем, что пакет действительно установлен
-        if dpkg -l | grep -q "^ii.*$package"; then
-            echo "✅ $package установлен"
-        else
+        # Пытаемся установить из сетевых репозиториев
+        # Используем DEBIAN_FRONTEND=noninteractive чтобы избежать запросов о CD
+        DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
+            -o Acquire::cdrom::AutoDetect=false \
+            -o Acquire::cdrom::mount=/dev/null \
+            --no-install-recommends \
+            "$package" 2>&1 | grep -v "Смена носителя" || {
+            # Если не получилось, пробуем без опций CD
             echo "⚠️  Повторная попытка установки $package..."
-            # Пробуем без дополнительных опций
-            DEBIAN_FRONTEND=noninteractive sudo apt-get install -y "$package" < /dev/null || {
+            DEBIAN_FRONTEND=noninteractive sudo apt-get install -y "$package" || {
                 echo "❌ Ошибка установки $package"
                 echo "💡 Попробуйте установить вручную: sudo apt-get install $package"
                 return 1
             }
-        fi
+        }
+        echo "✅ $package установлен"
     else
         echo "✅ $package уже установлен"
     fi
@@ -103,14 +81,9 @@ install_package() {
 
 # 1. Обновление списка пакетов
 echo "📋 Обновление списка пакетов..."
-echo "   (это может занять некоторое время...)"
 # Пытаемся обновить без CD-репозитория
-sudo apt-get update -qq \
-    -o Acquire::cdrom::AutoDetect=false \
-    -o Acquire::cdrom::mount=/dev/null \
-    2>&1 | grep -vE "(Смена носителя|Reading|Building|Done|Get:|Fetched)" || \
-sudo apt-get update -qq 2>&1 | grep -v "Смена носителя" > /dev/null 2>&1 || true
-echo "✅ Список пакетов обновлён"
+sudo apt-get update -qq -o Acquire::cdrom::AutoDetect=false 2>/dev/null || \
+sudo apt-get update -qq 2>&1 | grep -v "Смена носителя" || true
 
 # 2. Установка системных зависимостей
 echo ""
@@ -147,38 +120,13 @@ if ! command -v node &> /dev/null; then
     
     # Устанавливаем Node.js с игнорированием CD
     echo "Установка nodejs из сетевых репозиториев..."
-    echo "   (это может занять некоторое время...)"
-    
-    # Устанавливаем nodejs с таймаутом и перенаправлением stdin
-    echo "   Установка nodejs (это может занять несколько минут)..."
-    if timeout 600 bash -c "
-        export DEBIAN_FRONTEND=noninteractive
-        sudo -E apt-get install -y \
-            -o Dpkg::Options::='--force-confdef' \
-            -o Dpkg::Options::='--force-confold' \
-            -o Acquire::cdrom::AutoDetect=false \
-            -o Acquire::cdrom::mount=/dev/null \
-            -o APT::Get::Assume-Yes=true \
-            nodejs < /dev/null
-    " 2>&1 | while IFS= read -r line; do
-        if echo "$line" | grep -qE "(Установка|Настройка|Готово|Setting up|Unpacking|Selecting)"; then
-            echo "   $line"
-        fi
-    done; then
-        : # Успешно
-    else
-        echo "   Повторная попытка без дополнительных опций..."
-        timeout 600 bash -c "
-            export DEBIAN_FRONTEND=noninteractive
-            sudo apt-get install -y nodejs < /dev/null
-        " > /dev/null 2>&1 || echo "   ⚠️  Ошибка установки nodejs"
-    fi
-    
-    # Проверяем установку
-    if ! command -v node &> /dev/null; then
-        echo "⚠️  Попытка установки без дополнительных опций..."
-        DEBIAN_FRONTEND=noninteractive sudo apt-get install -y nodejs < /dev/null
-    fi
+    DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
+        -o Acquire::cdrom::AutoDetect=false \
+        -o Acquire::cdrom::mount=/dev/null \
+        nodejs 2>&1 | grep -v "Смена носителя" || {
+        echo "⚠️  Попытка установки без опций CD..."
+        DEBIAN_FRONTEND=noninteractive sudo apt-get install -y nodejs
+    }
     
     if command -v node &> /dev/null; then
         echo "✅ Node.js установлен: $(node --version)"
@@ -250,7 +198,24 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     cd "$PROJECT_ROOT/scripts"
     if [ -f "create-astra-image.sh" ]; then
         echo "🔨 Создание образа Astra Linux..."
-        sudo bash create-astra-image.sh || echo "⚠️  Ошибка создания образа (можно пропустить)"
+        echo "⚠️  Примечание: проверка уязвимостей будет отключена для создания образа тренажёра"
+        echo "💡 Если создание не удастся, будет использован готовый образ из реестра Astra Linux"
+        echo ""
+        sudo bash create-astra-image.sh || {
+            echo ""
+            echo "⚠️  Ошибка создания образа через debootstrap"
+            echo "💡 Скрипт должен был попробовать загрузить образ из реестра"
+            echo "💡 Образ можно создать позже командой:"
+            echo "   cd scripts && sudo ./create-astra-image.sh"
+            echo ""
+            read -p "Продолжить без образа? (y/n) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        }
+    else
+        echo "⚠️  Скрипт create-astra-image.sh не найден"
     fi
 fi
 

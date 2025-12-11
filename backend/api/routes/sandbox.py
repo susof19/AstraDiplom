@@ -11,7 +11,7 @@ router = APIRouter()
 class CreateSandboxRequest(BaseModel):
     mission_id: str
     level: str
-    image: str = "astra-linux:latest"
+    image: str = "localhost/astra-linux:se"  # Используем localhost/ для локальных образов
 
 
 @router.post("/sandbox/create")
