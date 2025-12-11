@@ -33,29 +33,32 @@ astra-trainer/
 
 ## 🚀 Быстрый старт
 
-### Для Astra Linux (рекомендуется)
+### Автоматическая установка (Astra Linux)
 
-**Автоматическая установка**:
 ```bash
 cd AstraDiplom
 chmod +x scripts/quickstart-astra.sh
 ./scripts/quickstart-astra.sh
 ```
 
-Скрипт автоматически установит все зависимости и создаст ярлык для запуска.
+### Ручная установка
 
-**Создание образов**:
 ```bash
+# 1. Создать образы
 cd scripts
+./create-astra-image.sh          # Базовый (CLI)
+./create-astra-image.sh --vnc    # С VNC (GUI)
 
-# Базовый образ для CLI-миссий (уровни B, C)
-./create-astra-image.sh
+# 2. Установить зависимости
+cd ../backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+cd ../frontend/web && npm install
 
-# Образ с VNC для GUI-миссий (уровень A)
-./create-astra-image.sh --vnc
+# 3. Запустить
+cd ../../backend && python run.py  # Терминал 1
+cd ../frontend/web && npm start     # Терминал 2
 ```
 
-См. [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md) для подробностей.
+**Подробнее**: [GETTING_STARTED.md](GETTING_STARTED.md)
 
 ### Для других Linux дистрибутивов
 
@@ -154,26 +157,25 @@ npm start
 
 ## 📚 Документация
 
-### 🎯 Быстрая справка
-- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - **Шпаргалка с основными командами**
-- [MISSIONS_TESTING_GUIDE.md](MISSIONS_TESTING_GUIDE.md) - **Руководство по тестированию миссий**
+### 🚀 Начало работы
+- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Полное руководство по установке и использованию
 
-### Быстрый старт
-- [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md) - **Установка и настройка на Astra Linux**
-- [QUICKSTART.md](QUICKSTART.md) - Быстрый старт для других систем
+### Установка на разных системах
+- [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md) - Установка на Astra Linux
 - [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows
+- [docs/SETUP.md](docs/SETUP.md) - Детальная настройка
+
+### Руководства по компонентам
+- [docs/PODMAN_GUIDE.md](docs/PODMAN_GUIDE.md) - Работа с Podman и создание образов
+- [docs/VNC_GUIDE.md](docs/VNC_GUIDE.md) - VNC для GUI-миссий через браузер
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Решение проблем
 
 ### Техническая документация
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Архитектура системы
-- [docs/SETUP.md](docs/SETUP.md) - Детальная настройка
 - [docs/MISSIONS.md](docs/MISSIONS.md) - Создание миссий
+- [scripts/README.md](scripts/README.md) - Документация скриптов
 
-### Руководства
-- [docs/PODMAN_GUIDE.md](docs/PODMAN_GUIDE.md) - **Работа с Podman и создание образов**
-- [docs/VNC_GUIDE.md](docs/VNC_GUIDE.md) - **VNC для GUI-миссий через браузер**
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Решение распространённых проблем
-
-### Дополнительно
+### Разработка
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Руководство по вкладу
 
 ## 🎮 Текущие миссии

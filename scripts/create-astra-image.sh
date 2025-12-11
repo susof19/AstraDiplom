@@ -107,9 +107,14 @@ if [ "$USE_ROOTLESS" = true ]; then
     if [ "$USE_VNC" = true ]; then
         echo "🔧 Создание образа с VNC через Dockerfile..."
         
+        # Переходим в корень проекта
+        cd "$(dirname "$0")/.."
+        
         # Проверка наличия Dockerfile
         if [ ! -f "images/Dockerfile.astra-vnc" ]; then
             echo "❌ Файл images/Dockerfile.astra-vnc не найден"
+            echo "Текущая директория: $(pwd)"
+            ls -la images/ 2>/dev/null || echo "Папка images/ не найдена"
             exit 1
         fi
         
@@ -128,6 +133,7 @@ if [ "$USE_ROOTLESS" = true ]; then
         
         # Сборка образа с VNC
         echo "📦 Сборка образа с VNC..."
+        echo "Директория сборки: $(pwd)"
         podman build \
             --build-arg BASE_IMAGE="$FALLBACK_IMAGE" \
             -t "localhost/$IMAGE_NAME" \
@@ -157,10 +163,16 @@ if [ "$USE_ROOTLESS" = true ]; then
             echo "✅ Базовый образ создан: localhost/$IMAGE_NAME"
         else
             echo "❌ Не удалось загрузить образ из реестра"
-            echo "💡 Проверьте доступность реестра или используйте --with-sudo"
+            echo "💡 Проверьте доступность реестра:"
+            echo "   1. Проверьте интернет-соединение"
+            echo "   2. Попробуйте: podman pull registry.astralinux.ru/library/astra/ubi18:1.8.1"
+            echo "   3. Или используйте альтернативный образ: podman pull debian:12"
             exit 1
         fi
     fi
+    
+    # Возвращаемся в исходную директорию
+    cd - > /dev/null 2>&1 || true
     
     # Показываем результат
     echo ""
