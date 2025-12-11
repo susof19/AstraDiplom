@@ -1,22 +1,42 @@
 name: "Поиск процессов"
-description: "Найдите все процессы, использующие более 100MB памяти, и завершите их"
+description: "Найдите процесс с именем 'test-daemon' и сохраните его PID в файл"
 level: "B"
-difficulty: 3
-estimated_time: 15
+difficulty: 2
+estimated_time: 10
 
 objectives:
-  - "Использовать ps или top для поиска процессов"
-  - "Отфильтровать процессы по использованию памяти"
-  - "Корректно завершить процессы"
+  - "Использовать команду ps или pgrep для поиска процесса"
+  - "Найти процесс с именем 'test-daemon'"
+  - "Сохранить PID процесса в файл /home/astrauser/daemon.pid"
 
 hints:
-  - "Используйте ps aux и awk для фильтрации"
-  - "Будьте осторожны с системными процессами"
+  - "Используйте команду: ps aux | grep test-daemon"
+  - "Или используйте: pgrep test-daemon"
+  - "Сохраните результат в файл: echo PID > daemon.pid"
+  - "Можно использовать перенаправление вывода: pgrep test-daemon > daemon.pid"
+
+setup:
+  # Запускаем тестовый процесс
+  commands:
+    - "sleep 3600 &"  # Имитация долгого процесса
+  # Создаём скрипт-демон
+  files:
+    - path: "/usr/local/bin/test-daemon"
+      content: |
+        #!/bin/bash
+        while true; do
+          sleep 10
+        done
+      mode: "0755"
 
 checks:
-  - name: "Процессы найдены"
+  - name: "Файл с PID создан"
+    type: "file_exists"
+    path: "/home/astrauser/daemon.pid"
+    points: 50
+    
+  - name: "Файл содержит число (PID)"
     type: "command_output"
-    command: "ps aux | awk '\$6 > 102400' | wc -l"
-    expected: "0"
-    points: 100
-
+    command: "cat /home/astrauser/daemon.pid | grep -E '^[0-9]+$' | wc -l"
+    expected: "1"
+    points: 50

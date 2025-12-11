@@ -17,66 +17,27 @@
 ### Проблема: Образ создан, но `podman images` показывает пустой список
 
 **Симптомы**:
-- Скрипт `create-astra-image.sh` завершается успешно
-- В логах видно, что образ создан
+- Скрипт завершается успешно
 - Команда `podman images` показывает пустой список
-- При попытке запустить контейнер: `Error: short-name did not resolve`
+- Ошибка: `Error: short-name did not resolve`
 
-**Причина**: Образ создан в root-контексте (через sudo), а проверяется в rootless-контексте (без sudo). Root и rootless podman используют разные хранилища:
-- Root: `/var/lib/containers/storage/`
-- Rootless: `~/.local/share/containers/storage/`
+**Причина**: Образ создан в root-контексте (через sudo), а проверяется в rootless-контексте.
 
 **Быстрое решение**:
 
-См. **[PODMAN_QUICK_FIX.md](../PODMAN_QUICK_FIX.md)** для быстрого решения.
+**Вариант 1: Пересоздать образ без sudo (рекомендуется)**
+```bash
+cd scripts
+./create-astra-image.sh --vnc
+```
 
-**Вариант 1: Перенос существующего образа**
-
+**Вариант 2: Перенос существующего образа**
 ```bash
 cd scripts
 ./fix-podman-images.sh
 ```
 
-**Вариант 2: Создание нового образа без sudo (рекомендуется)**
-
-```bash
-cd scripts
-./create-astra-image-rootless.sh
-```
-
-**Вариант 3: Ручной перенос**
-
-```bash
-# 1. Экспорт от root
-sudo podman save -o /tmp/astra.tar localhost/astra-linux:se
-
-# 2. Изменение владельца
-sudo chown $(id -u):$(id -g) /tmp/astra.tar
-
-# 3. Импорт для пользователя
-podman load -i /tmp/astra.tar
-
-# 4. Тегирование
-IMAGE_ID=$(podman images --format '{{.ID}}' | head -1)
-podman tag $IMAGE_ID localhost/astra-linux:se
-
-# 5. Очистка
-rm /tmp/astra.tar
-```
-
-**Диагностика**:
-
-```bash
-# Проверка у обычного пользователя
-podman images
-
-# Проверка у root
-sudo podman images
-
-# Если образ виден только у root - проблема подтверждена
-```
-
-**Подробная информация**: См. [docs/PODMAN_IMAGE_FIX.md](PODMAN_IMAGE_FIX.md)
+**Подробная информация**: См. [docs/PODMAN_GUIDE.md](PODMAN_GUIDE.md)
 
 ---
 

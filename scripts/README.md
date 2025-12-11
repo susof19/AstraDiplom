@@ -1,129 +1,165 @@
-# Скрипты для работы с Astra Linux Training Simulator
+# Скрипты Astra Linux Training Simulator
 
-## Создание образов
+## Основные скрипты
 
-### 🚀 Рекомендуемый способ (rootless, без sudo)
+### 🚀 create-astra-image.sh - Создание образов
 
+Универсальный скрипт для создания образов Astra Linux.
+
+**Использование**:
 ```bash
-./create-astra-image-rootless.sh
+./create-astra-image.sh [OPTIONS]
 ```
 
-**Преимущества:**
-- ✅ Не требует sudo
-- ✅ Загружает готовый образ из реестра Astra Linux
-- ✅ Быстрее работает
-- ✅ Правильно работает с rootless podman
-- ✅ Нет проблем с видимостью образов
+**Опции**:
+- `--vnc` - Создать образ с VNC поддержкой (GUI)
+- `--no-vnc` - Создать базовый образ (CLI) [по умолчанию]
+- `--rootless` - Использовать rootless режим [по умолчанию]
+- `--with-sudo` - Использовать sudo (debootstrap)
+- `--help` - Показать справку
 
-**Использует**: Официальный образ `registry.astralinux.ru/library/astra/ubi18`
+**Примеры**:
+```bash
+# Базовый образ для CLI-миссий (уровни B, C)
+./create-astra-image.sh
+
+# Образ с VNC для GUI-миссий (уровень A)
+./create-astra-image.sh --vnc
+```
+
+**Результат**:
+- Базовый: `localhost/astra-linux:se`
+- С VNC: `localhost/astra-linux:vnc`
 
 ---
 
-### 🔨 Альтернативный способ (через debootstrap, требует sudo)
+### 🔧 fix-podman-images.sh - Исправление проблем
 
-```bash
-sudo ./create-astra-image.sh
-```
+Переносит образы из root в rootless хранилище.
 
-**Особенности:**
-- ⚠️ Требует sudo
-- ⚠️ Создаёт образ через debootstrap (медленнее)
-- ⚠️ Образ создаётся в root-контексте
-- ⚠️ Требует переноса в rootless-контекст
+**Когда использовать**: Если образ создан через sudo, но не виден при `podman images`.
 
-**После создания через sudo выполните:**
+**Использование**:
 ```bash
 ./fix-podman-images.sh
 ```
 
 ---
 
-## Исправление проблем
+### 📥 import-astra-image.sh - Импорт образа
 
-### 🔧 Перенос образа из root в rootless
+Импортирует образ из tar-архива.
 
-Если образ создан через sudo, но не виден при `podman images`:
-
+**Использование**:
 ```bash
-./fix-podman-images.sh
+./import-astra-image.sh /path/to/image.tar
 ```
-
-Скрипт автоматически:
-1. Экспортирует образ из root podman
-2. Импортирует в rootless podman текущего пользователя
-3. Правильно тегирует образ
 
 ---
 
-## Быстрый старт
+### 📦 pull-astra-image.sh - Загрузка из реестра
 
-### Для Astra Linux (автоматическая установка)
+Загружает готовый образ из реестра Astra Linux.
 
+**Использование**:
+```bash
+./pull-astra-image.sh
+```
+
+---
+
+### 🎯 quickstart-astra.sh - Быстрый старт
+
+Автоматическая установка всех зависимостей на Astra Linux.
+
+**Использование**:
 ```bash
 ./quickstart-astra.sh
 ```
 
-Устанавливает все зависимости и создаёт ярлык для запуска.
+Устанавливает:
+- Podman
+- Node.js
+- Python зависимости
+- Создаёт образы
+- Создаёт ярлык запуска
 
 ---
 
-## Другие скрипты
+### 🖥️ start.sh - Запуск приложения
 
-### `build-image.sh`
-Сборка Docker-образа с GUI (устаревший, используйте rootless-версию)
+Запускает backend и frontend (Linux/Mac).
 
-### `start.sh`
-Запуск приложения (Linux/Mac)
-
-### `start-dev-windows.bat`
-Запуск в режиме разработки на Windows (mock-режим)
+**Использование**:
+```bash
+./start.sh
+```
 
 ---
 
-## Проверка образа
+### 💻 start-dev-windows.bat - Запуск на Windows
 
-После создания образа проверьте:
+Запускает приложение в mock-режиме на Windows.
+
+**Использование**:
+```powershell
+.\start-dev-windows.bat
+```
+
+---
+
+## Быстрые команды
+
+### Создание образов
+
+```bash
+# Базовый образ (CLI)
+./create-astra-image.sh
+
+# Образ с VNC (GUI)
+./create-astra-image.sh --vnc
+```
+
+### Проверка образов
 
 ```bash
 # Список образов
 podman images
 
-# Должен показать:
-# REPOSITORY             TAG    IMAGE ID      CREATED        SIZE
-# localhost/astra-linux  se     xxxxxxxxxxxx  X minutes ago  XXX MB
-
-# Тестовый запуск
+# Тестовый запуск базового
 podman run --rm -it localhost/astra-linux:se /bin/bash
+
+# Тестовый запуск VNC
+podman run -d -p 5900:5900 -p 6080:6080 localhost/astra-linux:vnc
+# Откройте: http://localhost:6080/vnc.html
+```
+
+### Решение проблем
+
+```bash
+# Образ не виден после создания через sudo
+./fix-podman-images.sh
+
+# Проверка образов у root
+sudo podman images
+
+# Проверка образов у пользователя
+podman images
 ```
 
 ---
 
-## Решение проблем
+## Структура образов
 
-### Образ не виден после создания
-
-См. **[../PODMAN_QUICK_FIX.md](../PODMAN_QUICK_FIX.md)**
-
-### Ошибка "short-name did not resolve"
-
-Используйте полное имя с префиксом:
-```bash
-podman run --rm -it localhost/astra-linux:se /bin/bash
 ```
-
-### Ошибка "connection refused"
-
-Образ не найден в локальном хранилище. Проверьте:
-```bash
-podman images
+localhost/astra-linux:se    - Базовый образ (Astra Linux + CLI)
+localhost/astra-linux:vnc   - Образ с VNC (+ TigerVNC + noVNC + XFCE)
 ```
 
 ---
 
 ## Дополнительная информация
 
-- [Быстрое решение проблем с Podman](../PODMAN_QUICK_FIX.md)
-- [Подробная информация о проблемах с образами](../docs/PODMAN_IMAGE_FIX.md)
-- [Общее решение проблем](../docs/TROUBLESHOOTING.md)
-- [Установка на Astra Linux](../docs/ASTRA_LINUX.md)
-
+- **Podman**: [docs/PODMAN_GUIDE.md](../docs/PODMAN_GUIDE.md)
+- **VNC**: [docs/VNC_GUIDE.md](../docs/VNC_GUIDE.md)
+- **Решение проблем**: [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)

@@ -190,34 +190,57 @@ if [ ! -d "node_modules" ]; then
 fi
 echo "✅ Frontend зависимости установлены"
 
-# 4. Создание образа Astra Linux (опционально)
+# 4. Создание образов Astra Linux
 echo ""
-read -p "Создать образ Astra Linux для песочниц? (y/n) " -n 1 -r
+echo "🔨 Создание образов Astra Linux..."
+echo ""
+echo "Доступные варианты:"
+echo "  1) Базовый образ (для CLI-миссий: уровни B, C)"
+echo "  2) Образ с VNC (для GUI-миссий: уровень A)"
+echo "  3) Оба образа"
+echo "  4) Пропустить (создать позже)"
+echo ""
+read -p "Выберите вариант (1-4): " -n 1 -r
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    cd "$PROJECT_ROOT/scripts"
-    if [ -f "create-astra-image.sh" ]; then
-        echo "🔨 Создание образа Astra Linux..."
-        echo "⚠️  Примечание: проверка уязвимостей будет отключена для создания образа тренажёра"
-        echo "💡 Если создание не удастся, будет использован готовый образ из реестра Astra Linux"
-        echo ""
-        sudo bash create-astra-image.sh || {
-            echo ""
-            echo "⚠️  Ошибка создания образа через debootstrap"
-            echo "💡 Скрипт должен был попробовать загрузить образ из реестра"
-            echo "💡 Образ можно создать позже командой:"
-            echo "   cd scripts && sudo ./create-astra-image.sh"
-            echo ""
-            read -p "Продолжить без образа? (y/n) " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-                exit 1
-            fi
+echo ""
+
+cd "$PROJECT_ROOT/scripts"
+
+case $REPLY in
+    1)
+        echo "📦 Создание базового образа..."
+        bash create-astra-image.sh || {
+            echo "⚠️  Ошибка создания образа"
+            echo "💡 Образ можно создать позже: cd scripts && ./create-astra-image.sh"
         }
-    else
-        echo "⚠️  Скрипт create-astra-image.sh не найден"
-    fi
-fi
+        ;;
+    2)
+        echo "📦 Создание образа с VNC..."
+        bash create-astra-image.sh --vnc || {
+            echo "⚠️  Ошибка создания образа"
+            echo "💡 Образ можно создать позже: cd scripts && ./create-astra-image.sh --vnc"
+        }
+        ;;
+    3)
+        echo "📦 Создание базового образа..."
+        bash create-astra-image.sh || echo "⚠️  Ошибка создания базового образа"
+        echo ""
+        echo "📦 Создание образа с VNC..."
+        bash create-astra-image.sh --vnc || echo "⚠️  Ошибка создания образа с VNC"
+        ;;
+    4)
+        echo "⏭️  Пропуск создания образов"
+        echo "💡 Образы можно создать позже командами:"
+        echo "   cd scripts"
+        echo "   ./create-astra-image.sh          # Базовый"
+        echo "   ./create-astra-image.sh --vnc    # С VNC"
+        ;;
+    *)
+        echo "❌ Неверный выбор, пропускаем создание образов"
+        ;;
+esac
+
+cd "$PROJECT_ROOT"
 
 # 5. Создание скрипта запуска
 echo ""

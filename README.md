@@ -35,8 +35,7 @@ astra-trainer/
 
 ### Для Astra Linux (рекомендуется)
 
-Используйте автоматический скрипт установки:
-
+**Автоматическая установка**:
 ```bash
 cd AstraDiplom
 chmod +x scripts/quickstart-astra.sh
@@ -44,6 +43,17 @@ chmod +x scripts/quickstart-astra.sh
 ```
 
 Скрипт автоматически установит все зависимости и создаст ярлык для запуска.
+
+**Создание образов**:
+```bash
+cd scripts
+
+# Базовый образ для CLI-миссий (уровни B, C)
+./create-astra-image.sh
+
+# Образ с VNC для GUI-миссий (уровень A)
+./create-astra-image.sh --vnc
+```
 
 См. [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md) для подробностей.
 
@@ -144,6 +154,10 @@ npm start
 
 ## 📚 Документация
 
+### 🎯 Быстрая справка
+- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - **Шпаргалка с основными командами**
+- [MISSIONS_TESTING_GUIDE.md](MISSIONS_TESTING_GUIDE.md) - **Руководство по тестированию миссий**
+
 ### Быстрый старт
 - [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md) - **Установка и настройка на Astra Linux**
 - [QUICKSTART.md](QUICKSTART.md) - Быстрый старт для других систем
@@ -154,14 +168,10 @@ npm start
 - [docs/SETUP.md](docs/SETUP.md) - Детальная настройка
 - [docs/MISSIONS.md](docs/MISSIONS.md) - Создание миссий
 
-### Решение проблем
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - **Решение распространённых проблем**
-- [PODMAN_QUICK_FIX.md](PODMAN_QUICK_FIX.md) - **Быстрое решение проблем с образами Podman**
-- [docs/PODMAN_IMAGE_FIX.md](docs/PODMAN_IMAGE_FIX.md) - Подробная информация о проблемах с Podman
-
-### VNC и GUI
-- [VNC_QUICKSTART.md](VNC_QUICKSTART.md) - **Быстрый старт с VNC для GUI-миссий**
-- [docs/VNC_INTEGRATION.md](docs/VNC_INTEGRATION.md) - Подробная документация по VNC интеграции
+### Руководства
+- [docs/PODMAN_GUIDE.md](docs/PODMAN_GUIDE.md) - **Работа с Podman и создание образов**
+- [docs/VNC_GUIDE.md](docs/VNC_GUIDE.md) - **VNC для GUI-миссий через браузер**
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Решение распространённых проблем
 
 ### Дополнительно
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Руководство по вкладу
