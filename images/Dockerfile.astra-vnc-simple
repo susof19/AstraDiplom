@@ -1,0 +1,78 @@
+# Упрощённый Dockerfile для Astra Linux с VNC
+# Использует только базовые пакеты, доступные в минимальном образе
+
+ARG BASE_IMAGE=registry.astralinux.ru/library/astra/ubi18@sha256:850a91072ae82fcd7c718e979d044bd8f4a218a1f7938c23d98d019e1b5e7bfa
+FROM ${BASE_IMAGE}
+
+# Метаданные
+LABEL maintainer="Astra Linux Training Simulator"
+LABEL description="Minimal Astra Linux with VNC"
+LABEL version="1.0-simple"
+
+# Переменные окружения
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=ru_RU.UTF-8 \
+    DISPLAY=:0 \
+    VNC_PORT=5900 \
+    NOVNC_PORT=6080
+
+# Обновление и установка базовых пакетов
+RUN apt-get update && \
+    apt-get install -y \
+        locales \
+        wget \
+        curl \
+        python3 \
+        python3-pip \
+        git \
+        xterm \
+        supervisor && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Настройка локали
+RUN echo "ru_RU.UTF-8 UTF-8" >> /etc/locale.gen && \
+    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
+    locale-gen || true
+
+# Установка websockify для noVNC
+RUN pip3 install --no-cache-dir websockify || \
+    (wget https://github.com/novnc/websockify/archive/refs/tags/v0.11.0.tar.gz && \
+     tar xzf v0.11.0.tar.gz && \
+     cd websockify-0.11.0 && \
+     python3 setup.py install && \
+     cd .. && rm -rf websockify-0.11.0 v0.11.0.tar.gz)
+
+# Установка noVNC
+RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC && \
+    ln -s /opt/noVNC/vnc.html /opt/noVNC/index.html
+
+# Создание пользователя
+RUN useradd -m -s /bin/bash astrauser && \
+    echo "astrauser:astra123" | chpasswd && \
+    mkdir -p /home/astrauser/.vnc && \
+    mkdir -p /home/astrauser/Документы && \
+    mkdir -p /home/astrauser/Загрузки && \
+    mkdir -p /home/astrauser/Изображения && \
+    chown -R astrauser:astrauser /home/astrauser
+
+# Создание простого скрипта запуска (без VNC, только noVNC для демонстрации)
+RUN mkdir -p /usr/local/bin
+COPY start-vnc-simple.sh /usr/local/bin/start-vnc.sh
+RUN chmod +x /usr/local/bin/start-vnc.sh
+
+# Конфигурация supervisor
+RUN mkdir -p /var/log/supervisor /etc/supervisor/conf.d
+
+COPY supervisord-simple.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Открытие портов
+EXPOSE 6080
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:6080/ || exit 1
+
+# Точка входа
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+

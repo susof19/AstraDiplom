@@ -105,40 +105,84 @@ if [ "$USE_ROOTLESS" = true ]; then
     fi
     
     if [ "$USE_VNC" = true ]; then
-        echo "🔧 Создание образа с VNC через Dockerfile..."
+        echo "🔧 Создание образа с VNC..."
+        echo ""
+        echo "⚠️  Внимание: Базовый образ Astra Linux не содержит GUI пакетов"
+        echo ""
+        echo "Выберите вариант:"
+        echo "  1) Упрощённая версия (без реального VNC, только для демонстрации)"
+        echo "  2) Использовать Debian 12 как базу (для тестирования с полным VNC)"
+        echo "  3) Отмена"
+        echo ""
+        read -p "Выберите вариант (1-3): " -n 1 -r
+        echo
+        echo ""
         
         # Переходим в корень проекта
         cd "$(dirname "$0")/.."
         
-        # Проверка наличия Dockerfile
-        if [ ! -f "images/Dockerfile.astra-vnc" ]; then
-            echo "❌ Файл images/Dockerfile.astra-vnc не найден"
-            echo "Текущая директория: $(pwd)"
-            ls -la images/ 2>/dev/null || echo "Папка images/ не найдена"
-            exit 1
-        fi
-        
-        # Проверка необходимых файлов
-        REQUIRED_FILES=(
-            "images/start-vnc.sh"
-            "images/supervisord.conf"
-        )
-        
-        for file in "${REQUIRED_FILES[@]}"; do
-            if [ ! -f "$file" ]; then
-                echo "❌ Файл $file не найден"
+        case $REPLY in
+            1)
+                echo "📦 Сборка упрощённой версии..."
+                
+                # Проверка файлов
+                if [ ! -f "images/Dockerfile.astra-vnc-simple" ]; then
+                    echo "❌ Файл images/Dockerfile.astra-vnc-simple не найден"
+                    exit 1
+                fi
+                
+                # Сборка
+                podman build \
+                    --build-arg BASE_IMAGE="$FALLBACK_IMAGE" \
+                    -t "localhost/$IMAGE_NAME" \
+                    -f images/Dockerfile.astra-vnc-simple \
+                    .
+                
+                if [ $? -eq 0 ]; then
+                    echo ""
+                    echo "✅ Упрощённый образ создан"
+                    echo "⚠️  Это демонстрационная версия без реального VNC"
+                    echo "💡 Для CLI-миссий используйте базовый образ: ./create-astra-image.sh"
+                fi
+                ;;
+            2)
+                echo "📥 Загрузка Debian 12 как базового образа..."
+                
+                if podman pull debian:12; then
+                    echo "✅ Debian 12 загружен"
+                    
+                    # Проверка файлов
+                    if [ ! -f "images/Dockerfile.astra-vnc" ]; then
+                        echo "❌ Файл images/Dockerfile.astra-vnc не найден"
+                        exit 1
+                    fi
+                    
+                    echo "📦 Сборка образа с VNC на базе Debian..."
+                    podman build \
+                        --build-arg BASE_IMAGE="debian:12" \
+                        -t "localhost/$IMAGE_NAME" \
+                        -f images/Dockerfile.astra-vnc \
+                        .
+                    
+                    if [ $? -eq 0 ]; then
+                        echo ""
+                        echo "✅ Образ с VNC создан на базе Debian 12"
+                        echo "💡 Это тестовая версия для разработки"
+                    fi
+                else
+                    echo "❌ Не удалось загрузить Debian 12"
+                    exit 1
+                fi
+                ;;
+            3)
+                echo "Отменено"
+                exit 0
+                ;;
+            *)
+                echo "❌ Неверный выбор"
                 exit 1
-            fi
-        done
-        
-        # Сборка образа с VNC
-        echo "📦 Сборка образа с VNC..."
-        echo "Директория сборки: $(pwd)"
-        podman build \
-            --build-arg BASE_IMAGE="$FALLBACK_IMAGE" \
-            -t "localhost/$IMAGE_NAME" \
-            -f images/Dockerfile.astra-vnc \
-            .
+                ;;
+        esac
         
         if [ $? -eq 0 ]; then
             echo ""
