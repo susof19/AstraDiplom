@@ -1,12 +1,12 @@
-# Dockerfile для создания образа Astra Linux с TigerVNC и noVNC
-# Базируется на официальном образе Astra Linux
+# Dockerfile для создания образа Linux с TigerVNC и noVNC
+# Поддерживает Debian-based дистрибутивы (Debian, Ubuntu, Astra Linux)
 
-ARG BASE_IMAGE=registry.astralinux.ru/library/astra/ubi18@sha256:850a91072ae82fcd7c718e979d044bd8f4a218a1f7938c23d98d019e1b5e7bfa
+ARG BASE_IMAGE=debian:12
 FROM ${BASE_IMAGE}
 
 # Метаданные
-LABEL maintainer="Astra Linux Training Simulator"
-LABEL description="Astra Linux with TigerVNC and noVNC for web-based GUI access"
+LABEL maintainer="Linux Training Simulator"
+LABEL description="Linux sandbox with TigerVNC and noVNC for web-based GUI access"
 LABEL version="1.0"
 
 # Переменные окружения
@@ -89,36 +89,36 @@ RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC && \
     chmod +x /opt/noVNC/utils/novnc_proxy
 
 # Создание пользователя для VNC
-RUN useradd -m -s /bin/bash -G sudo astrauser && \
-    echo "astrauser:astra123" | chpasswd && \
-    mkdir -p /home/astrauser/.vnc && \
-    mkdir -p /home/astrauser/.config/xfce4 && \
-    chown -R astrauser:astrauser /home/astrauser
+RUN useradd -m -s /bin/bash -G sudo sandboxuser && \
+    echo "sandboxuser:sandbox123" | chpasswd && \
+    mkdir -p /home/sandboxuser/.vnc && \
+    mkdir -p /home/sandboxuser/.config/xfce4 && \
+    chown -R sandboxuser:sandboxuser /home/sandboxuser
 
 # Настройка VNC пароля
-USER astrauser
-RUN echo "astra123" | vncpasswd -f > /home/astrauser/.vnc/passwd && \
-    chmod 600 /home/astrauser/.vnc/passwd
+USER sandboxuser
+RUN echo "sandbox123" | vncpasswd -f > /home/sandboxuser/.vnc/passwd && \
+    chmod 600 /home/sandboxuser/.vnc/passwd
 
 # Создание конфигурации VNC
-RUN echo '#!/bin/bash' > /home/astrauser/.vnc/xstartup && \
-    echo 'unset SESSION_MANAGER' >> /home/astrauser/.vnc/xstartup && \
-    echo 'unset DBUS_SESSION_BUS_ADDRESS' >> /home/astrauser/.vnc/xstartup && \
-    echo 'export XKL_XMODMAP_DISABLE=1' >> /home/astrauser/.vnc/xstartup && \
-    echo 'export XDG_CURRENT_DESKTOP=XFCE' >> /home/astrauser/.vnc/xstartup && \
-    echo 'export XDG_SESSION_TYPE=x11' >> /home/astrauser/.vnc/xstartup && \
-    echo 'dbus-launch --exit-with-session startxfce4 &' >> /home/astrauser/.vnc/xstartup && \
-    chmod +x /home/astrauser/.vnc/xstartup
+RUN echo '#!/bin/bash' > /home/sandboxuser/.vnc/xstartup && \
+    echo 'unset SESSION_MANAGER' >> /home/sandboxuser/.vnc/xstartup && \
+    echo 'unset DBUS_SESSION_BUS_ADDRESS' >> /home/sandboxuser/.vnc/xstartup && \
+    echo 'export XKL_XMODMAP_DISABLE=1' >> /home/sandboxuser/.vnc/xstartup && \
+    echo 'export XDG_CURRENT_DESKTOP=XFCE' >> /home/sandboxuser/.vnc/xstartup && \
+    echo 'export XDG_SESSION_TYPE=x11' >> /home/sandboxuser/.vnc/xstartup && \
+    echo 'dbus-launch --exit-with-session startxfce4 &' >> /home/sandboxuser/.vnc/xstartup && \
+    chmod +x /home/sandboxuser/.vnc/xstartup
 
 # Создание конфигурации XFCE (отключение заставки и энергосбережения)
-RUN mkdir -p /home/astrauser/.config/xfce4/xfconf/xfce-perchannel-xml && \
-    echo '<?xml version="1.0" encoding="UTF-8"?>' > /home/astrauser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
-    echo '<channel name="xfce4-power-manager" version="1.0">' >> /home/astrauser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
-    echo '  <property name="xfce4-power-manager" type="empty">' >> /home/astrauser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
-    echo '    <property name="dpms-enabled" type="bool" value="false"/>' >> /home/astrauser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
-    echo '    <property name="blank-on-ac" type="int" value="0"/>' >> /home/astrauser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
-    echo '  </property>' >> /home/astrauser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
-    echo '</channel>' >> /home/astrauser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml
+RUN mkdir -p /home/sandboxuser/.config/xfce4/xfconf/xfce-perchannel-xml && \
+    echo '<?xml version="1.0" encoding="UTF-8"?>' > /home/sandboxuser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
+    echo '<channel name="xfce4-power-manager" version="1.0">' >> /home/sandboxuser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
+    echo '  <property name="xfce4-power-manager" type="empty">' >> /home/sandboxuser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
+    echo '    <property name="dpms-enabled" type="bool" value="false"/>' >> /home/sandboxuser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
+    echo '    <property name="blank-on-ac" type="int" value="0"/>' >> /home/sandboxuser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
+    echo '  </property>' >> /home/sandboxuser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml && \
+    echo '</channel>' >> /home/sandboxuser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml
 
 USER root
 
@@ -137,7 +137,7 @@ EXPOSE 5900 6080
 
 # Создание директории для миссий
 RUN mkdir -p /mission && \
-    chown astrauser:astrauser /mission
+    chown sandboxuser:sandboxuser /mission
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

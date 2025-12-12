@@ -12,12 +12,12 @@ class Settings(BaseSettings):
     IMAGES_DIR: Path = BASE_DIR / "images"
     SANDBOX_DATA_DIR: Path = BASE_DIR / "sandbox_data"
     
-    # Podman настройки (Astra Linux)
-    # В Astra Linux используется rootless режим через rootless-helper-astra
-    # Для работы используется команда rootlessenv (аналог rootlessenv для Docker)
-    PODMAN_BINARY: str = "podman"  # Или "rootlessenv podman" для rootless режима
-    PODMAN_ROOTLESS: bool = True  # Использовать rootless режим
-    PODMAN_SOCKET: str = "unix:///run/user/1000/podman/podman.sock"  # rootless socket
+    # Podman/Docker настройки
+    # Поддерживает rootless режим для Podman (Debian, Ubuntu, Astra Linux)
+    # Для работы используется команда podman или docker
+    PODMAN_BINARY: str = "podman"  # Или "docker" для Docker, "rootlessenv podman" для Astra Linux с rootless-helper-astra
+    PODMAN_ROOTLESS: bool = True  # Использовать rootless режим (для Podman)
+    PODMAN_SOCKET: str = "unix:///run/user/1000/podman/podman.sock"  # rootless socket для Podman
     # Для Astra Linux с rootless-helper-astra может потребоваться:
     # PODMAN_BINARY: str = "rootlessenv podman"  # Если используется rootless-helper-astra
     
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # VNC/noVNC настройки
     VNC_PORT_START: int = 5900
     NOVNC_PORT_START: int = 6080
-    VNC_PASSWORD: str = "astra123"  # TODO: генерировать случайно
+    VNC_PASSWORD: str = "sandbox123"  # TODO: генерировать случайно
     VNC_RESOLUTION: str = "1280x720"
     
     # API настройки

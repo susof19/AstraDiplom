@@ -12,8 +12,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Astra Linux Training Simulator API",
-    description="API для тренажёра Astra Linux",
+    title="Linux Training Simulator API",
+    description="API для тренажёра Linux (поддерживает Debian-based дистрибутивы и Astra Linux)",
     version="0.1.0"
 )
 
@@ -37,14 +37,14 @@ app.include_router(progress.router, prefix=settings.API_PREFIX, tags=["progress"
 @app.on_event("startup")
 async def startup_event():
     """Инициализация при запуске"""
-    logger.info("Запуск Astra Linux Training Simulator API")
+    logger.info("Запуск Linux Training Simulator API")
     
-    # Проверка совместимости с Astra Linux
+    # Проверка совместимости системы (Podman/Docker)
     try:
         from backend.sandbox.astra_check import run_compatibility_check
         compat = run_compatibility_check()
         if compat["compatible"]:
-            logger.info("✅ Система совместима с Astra Linux")
+            logger.info("✅ Система совместима (Podman/Docker доступен)")
         else:
             logger.warning("⚠️  Обнаружены проблемы совместимости:")
             for check, (status, msg) in compat["checks"].items():
@@ -73,9 +73,10 @@ async def shutdown_event():
 async def root():
     """Корневой endpoint"""
     return {
-        "name": "Astra Linux Training Simulator API",
+        "name": "Linux Training Simulator API",
         "version": "0.1.0",
-        "status": "running"
+        "status": "running",
+        "description": "Универсальный тренажёр для Debian-based дистрибутивов"
     }
 
 

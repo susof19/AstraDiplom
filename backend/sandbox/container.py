@@ -1,4 +1,4 @@
-"""Контейнерная песочница на базе Podman (Astra Linux)"""
+"""Контейнерная песочница на базе Podman/Docker (поддерживает Debian-based дистрибутивы и Astra Linux)"""
 import asyncio
 import json
 import subprocess
@@ -42,9 +42,9 @@ class ContainerSandbox:
         self.status: str = "created"
         
     async def create(self) -> bool:
-        """Создать контейнер (Astra Linux rootless режим)"""
+        """Создать контейнер (rootless режим для Podman или Docker)"""
         try:
-            # Определяем базовую команду
+            # Определяем базовую команду (podman или docker)
             # В Astra Linux для rootless может использоваться rootlessenv
             base_cmd = settings.PODMAN_BINARY.split()
             
@@ -58,7 +58,7 @@ class ContainerSandbox:
                 "--cpus", settings.SANDBOX_CPU_LIMIT,
             ]
             
-            # Для rootless режима в Astra Linux
+            # Для rootless режима (Podman) или обычного режима (Docker)
             if settings.PODMAN_ROOTLESS:
                 # В rootless режиме некоторые опции могут отличаться
                 # label=disable может не работать, используем другие опции

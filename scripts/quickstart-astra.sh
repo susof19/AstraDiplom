@@ -103,23 +103,62 @@ else
     fi
 fi
 
-# Node.js 18+
-if ! command -v node &> /dev/null; then
-    echo "📦 Установка Node.js..."
+# Функция для установки Node.js с альтернативными источниками
+install_nodejs() {
+    local NODE_VERSION="20.x"  # Обновлено до Node.js 20.x LTS
+    local sources=(
+        "https://deb.nodesource.com/setup_${NODE_VERSION}"
+        "https://raw.githubusercontent.com/nodesource/distributions/master/deb/setup_${NODE_VERSION}"
+        "https://nodejs.org/dist/v20.18.0/node-v20.18.0-linux-x64.tar.xz"
+    )
+    
+    echo "📦 Установка Node.js ${NODE_VERSION}..."
+    
     # Проверяем наличие NodeSource репозитория
     if [ ! -f /etc/apt/sources.list.d/nodesource.list ]; then
-        echo "Добавление репозитория NodeSource..."
-        # Добавляем репозиторий с игнорированием CD
-        curl -fsSL https://deb.nodesource.com/setup_18.x | \
-            sudo -E bash - 2>&1 | grep -v "Смена носителя" || true
+        echo "🔗 Добавление репозитория NodeSource..."
+        local setup_success=false
+        
+        # Пробуем первый источник (основной)
+        echo "   Попытка 1/3: deb.nodesource.com..."
+        echo "   ⬇️  Загрузка скрипта установки..."
+        if curl --progress-bar --fail --show-error \
+            https://deb.nodesource.com/setup_${NODE_VERSION} 2>&1 | \
+            sudo -E bash - 2>&1 | grep -v "Смена носителя"; then
+            setup_success=true
+            echo "   ✅ Репозиторий добавлен успешно"
+        else
+            echo "   ⚠️  Не удалось загрузить с основного источника"
+        fi
+        
+        # Если не получилось, пробуем альтернативный источник
+        if [ "$setup_success" = false ]; then
+            echo "   Попытка 2/3: GitHub raw (альтернативный источник)..."
+            echo "   ⬇️  Загрузка скрипта установки..."
+            if curl --progress-bar --fail --show-error \
+                https://raw.githubusercontent.com/nodesource/distributions/master/deb/setup_${NODE_VERSION} 2>&1 | \
+                sudo -E bash - 2>&1 | grep -v "Смена носителя"; then
+                setup_success=true
+                echo "   ✅ Репозиторий добавлен успешно"
+            else
+                echo "   ⚠️  Не удалось загрузить с альтернативного источника"
+            fi
+        fi
+        
+        # Если всё ещё не получилось, пробуем установить из стандартных репозиториев
+        if [ "$setup_success" = false ]; then
+            echo "   Попытка 3/3: установка из стандартных репозиториев..."
+            echo "   ⚠️  NodeSource недоступен, используем стандартные репозитории"
+        fi
         
         # Обновляем список пакетов после добавления репозитория
+        echo "📋 Обновление списка пакетов..."
         sudo apt-get update -qq -o Acquire::cdrom::AutoDetect=false 2>/dev/null || \
         sudo apt-get update -qq 2>&1 | grep -v "Смена носителя" || true
     fi
     
     # Устанавливаем Node.js с игнорированием CD
-    echo "Установка nodejs из сетевых репозиториев..."
+    echo "📥 Установка nodejs из сетевых репозиториев..."
     DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
         -o Acquire::cdrom::AutoDetect=false \
         -o Acquire::cdrom::mount=/dev/null \
@@ -130,16 +169,29 @@ if ! command -v node &> /dev/null; then
     
     if command -v node &> /dev/null; then
         echo "✅ Node.js установлен: $(node --version)"
+        return 0
     else
         echo "❌ Не удалось установить Node.js автоматически"
         echo "💡 Попробуйте установить вручную: sudo apt-get install nodejs"
+        return 1
     fi
+}
+
+# Node.js 20+
+if ! command -v node &> /dev/null; then
+    install_nodejs
 else
     NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
     echo "✅ Node.js установлен: $(node --version)"
-    if [ "$NODE_VERSION" -lt 18 ]; then
-        echo "⚠️  Требуется Node.js 18+, текущая версия: $(node --version)"
-        echo "💡 Обновление Node.js может потребовать ручной установки"
+    if [ "$NODE_VERSION" -lt 20 ]; then
+        echo "⚠️  Рекомендуется Node.js 20+, текущая версия: $(node --version)"
+        read -p "Обновить Node.js до версии 20.x? (y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            # Удаляем старый репозиторий если есть
+            sudo rm -f /etc/apt/sources.list.d/nodesource.list
+            install_nodejs
+        fi
     fi
 fi
 
@@ -170,23 +222,101 @@ echo "📦 Установка зависимостей проекта..."
 
 # Backend
 echo "Backend зависимости..."
-cd "$PROJECT_ROOT/backend"
-if [ ! -d "venv" ]; then
-    echo "Создание виртуального окружения Python..."
-    python3 -m venv venv
+echo "   Текущая директория: $(pwd)"
+echo "   Переход в: $PROJECT_ROOT/backend"
+if [ ! -d "$PROJECT_ROOT/backend" ]; then
+    echo "❌ Ошибка: директория backend не найдена"
+    echo "💡 Проверьте путь: $PROJECT_ROOT/backend"
+    echo "💡 Текущий PROJECT_ROOT: $PROJECT_ROOT"
+    exit 1
 fi
 
-source venv/bin/activate
-pip install --upgrade pip -q
-pip install -r requirements.txt -q
-echo "✅ Backend зависимости установлены"
+cd "$PROJECT_ROOT/backend" || {
+    echo "❌ Ошибка: не удалось перейти в директорию backend"
+    echo "💡 Проверьте путь: $PROJECT_ROOT/backend"
+    exit 1
+}
+echo "   ✅ Переход выполнен, текущая директория: $(pwd)"
+
+if [ ! -d "venv" ]; then
+    echo "   Создание виртуального окружения Python..."
+    if ! python3 -m venv venv; then
+        echo "❌ Ошибка создания виртуального окружения"
+        echo "💡 Проверьте установку python3-venv: sudo apt-get install python3-venv"
+        exit 1
+    fi
+    echo "   ✅ Виртуальное окружение создано"
+fi
+
+# Проверяем существование файла активации перед попыткой активации
+if [ ! -f "venv/bin/activate" ]; then
+    echo "❌ Ошибка: файл активации виртуального окружения не найден"
+    echo "💡 Попробуйте удалить venv и пересоздать: rm -rf venv && python3 -m venv venv"
+    exit 1
+fi
+
+echo "   Активация виртуального окружения..."
+source venv/bin/activate || {
+    echo "❌ Ошибка активации виртуального окружения"
+    exit 1
+}
+
+echo "   Обновление pip..."
+if ! pip install --upgrade pip 2>&1 | tee /tmp/pip-upgrade.log | \
+    grep -E "(Collecting|Installing|Requirement|Successfully|Downloading|Upgrading)" || true; then
+    # Если команда не выполнилась, проверяем лог
+    if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        echo "   ⚠️  Возможна проблема при обновлении pip"
+        tail -10 /tmp/pip-upgrade.log 2>/dev/null || true
+    fi
+fi
+
+# Проверяем наличие requirements.txt
+if [ ! -f "requirements.txt" ]; then
+    echo "❌ Ошибка: файл requirements.txt не найден в $PROJECT_ROOT/backend"
+    echo "💡 Убедитесь, что файл существует"
+    exit 1
+fi
+
+echo "   Установка зависимостей из requirements.txt..."
+echo "   ⬇️  Загрузка пакетов..."
+pip install -r requirements.txt 2>&1 | tee /tmp/pip-install.log | \
+    grep -E "(Collecting|Installing|Requirement|Successfully|Downloading|Building)" || true
+
+# Проверяем успешность установки по коду возврата pip
+PIP_EXIT_CODE=${PIPESTATUS[0]}
+if [ $PIP_EXIT_CODE -eq 0 ]; then
+    echo "✅ Backend зависимости установлены"
+else
+    echo "⚠️  Возможны проблемы с установкой зависимостей (код возврата: $PIP_EXIT_CODE)"
+    echo "💡 Показываем последние строки лога:"
+    tail -30 /tmp/pip-install.log 2>/dev/null || true
+    echo "💡 Попробуйте установить вручную: cd backend && source venv/bin/activate && pip install -r requirements.txt"
+fi
 
 # Frontend
 echo "Frontend зависимости..."
 cd "$PROJECT_ROOT/frontend/web"
 if [ ! -d "node_modules" ]; then
-    echo "Установка npm пакетов..."
-    npm install --silent
+    echo "   Установка npm пакетов (это может занять некоторое время)..."
+    echo "   ⬇️  Загрузка пакетов..."
+    # npm install показывает прогресс по умолчанию, используем стандартный вывод
+    npm install 2>&1 | tee /tmp/npm-install.log | \
+        grep -E "(added|removed|changed|audited|npm WARN|npm ERR|Downloading|Installing|Building)" || {
+        # Если grep ничего не нашёл или произошла ошибка, показываем последние строки
+        if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "   ⚠️  Произошла ошибка, показываем последние строки лога:"
+            tail -20 /tmp/npm-install.log 2>/dev/null || true
+        fi
+    }
+    # Проверяем успешность установки
+    if [ -d "node_modules" ] && [ -f "package-lock.json" ]; then
+        echo "   ✅ Пакеты установлены успешно"
+    else
+        echo "   ⚠️  Возможна проблема с установкой, проверьте лог выше"
+    fi
+else
+    echo "   ✅ node_modules уже существует, пропускаем установку"
 fi
 echo "✅ Frontend зависимости установлены"
 

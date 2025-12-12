@@ -1,7 +1,15 @@
 #!/bin/bash
-# Скрипт остановки демонстрации
+# Скрипт остановки демонстрации Linux Training Simulator
 
-echo "🛑 Остановка Astra Linux Training Simulator..."
+# Определение контейнерной команды (Podman или Docker)
+CONTAINER_CMD=""
+if command -v podman &> /dev/null; then
+    CONTAINER_CMD="podman"
+elif command -v docker &> /dev/null; then
+    CONTAINER_CMD="docker"
+fi
+
+echo "🛑 Остановка Linux Training Simulator..."
 echo ""
 
 # Остановка по PID файлам
@@ -26,11 +34,13 @@ pkill -f 'npm start' 2>/dev/null || true
 pkill -f 'react-scripts start' 2>/dev/null || true
 
 # Остановка контейнеров (опционально)
-read -p "Остановить все контейнеры? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Остановка контейнеров..."
-    podman stop $(podman ps -q) 2>/dev/null || echo "  Нет запущенных контейнеров"
+if [ -n "$CONTAINER_CMD" ]; then
+    read -p "Остановить все контейнеры? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Остановка контейнеров..."
+        $CONTAINER_CMD stop $($CONTAINER_CMD ps -q) 2>/dev/null || echo "  Нет запущенных контейнеров"
+    fi
 fi
 
 echo ""

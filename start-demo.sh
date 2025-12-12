@@ -1,32 +1,97 @@
 #!/bin/bash
-# Скрипт запуска для демонстрации Astra Linux Training Simulator
+# Скрипт запуска для демонстрации Linux Training Simulator
+# Поддерживает Debian-based дистрибутивы и Astra Linux
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
-echo "🚀 Запуск Astra Linux Training Simulator для демонстрации"
+# Определение контейнерной команды (Podman или Docker)
+CONTAINER_CMD=""
+if command -v podman &> /dev/null; then
+    CONTAINER_CMD="podman"
+elif command -v docker &> /dev/null; then
+    CONTAINER_CMD="docker"
+else
+    echo "❌ Ошибка: Podman или Docker не найдены"
+    echo "💡 Установите один из них:"
+    echo "   sudo apt-get install podman"
+    echo "   или"
+    echo "   sudo apt-get install docker.io"
+    exit 1
+fi
+
+echo "🚀 Запуск Linux Training Simulator"
 echo "=========================================================="
+echo "Контейнерная система: $CONTAINER_CMD"
 echo ""
 
 # Проверка образов
-echo "📦 Проверка образов..."
-if ! podman images | grep -q "astra-linux"; then
-    echo "⚠️  Образы не найдены!"
+echo "📦 Проверка образов контейнеров..."
+IMAGE_FOUND=false
+
+# Проверяем наличие образов (поддерживаем разные имена)
+if $CONTAINER_CMD images --format "{{.Repository}}:{{.Tag}}" | grep -qE "(localhost/astra-linux|astra-linux)"; then
+    IMAGE_FOUND=true
+    echo "✅ Образы контейнеров найдены"
+elif $CONTAINER_CMD images --format "{{.Repository}}:{{.Tag}}" | grep -qE "(localhost/linux-sandbox|linux-sandbox)"; then
+    IMAGE_FOUND=true
+    echo "✅ Образы контейнеров найдены"
+fi
+
+if [ "$IMAGE_FOUND" = false ]; then
+    echo "⚠️  Образы контейнеров не найдены!"
     echo ""
+    echo "Образы контейнеров необходимы для запуска песочниц (sandbox'ов)."
     echo "Создайте образы командой:"
     echo "  cd scripts && ./create-astra-image.sh"
     echo ""
-    read -p "Создать базовый образ сейчас? (y/n) " -n 1 -r
+    echo "Доступные варианты:"
+    echo "  1) Базовый образ (для CLI-миссий)"
+    echo "  2) Образ с VNC (для GUI-миссий)"
+    echo ""
+    read -p "Создать образы сейчас? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        cd scripts
-        ./create-astra-image.sh
+        cd scripts || exit 1
+        echo ""
+        echo "Выберите тип образа:"
+        echo "  1) Базовый образ (CLI)"
+        echo "  2) Образ с VNC (GUI)"
+        echo "  3) Оба образа"
+        read -p "Ваш выбор (1-3): " image_choice
+        echo
+        
+        case $image_choice in
+            1)
+                ./create-astra-image.sh
+                ;;
+            2)
+                ./create-astra-image.sh --vnc
+                ;;
+            3)
+                ./create-astra-image.sh
+                ./create-astra-image.sh --vnc
+                ;;
+            *)
+                echo "❌ Неверный выбор"
+                exit 1
+                ;;
+        esac
+        
         cd ..
+        
+        # Проверяем снова после создания
+        if ! $CONTAINER_CMD images --format "{{.Repository}}:{{.Tag}}" | grep -qE "(localhost/astra-linux|astra-linux)"; then
+            echo "⚠️  Образы не были созданы успешно"
+            echo "💡 Продолжаем без образов (некоторые функции могут быть недоступны)"
+        else
+            echo "✅ Образы созданы успешно"
+        fi
     else
-        exit 1
+        echo "⚠️  Продолжаем без образов (некоторые функции могут быть недоступны)"
+        echo "💡 Вы можете создать образы позже: cd scripts && ./create-astra-image.sh"
     fi
 fi
-echo "✅ Образы найдены"
 echo ""
 
 # Проверка зависимостей Backend
@@ -126,7 +191,7 @@ echo "   Backend:  tail -f backend.log"
 echo "   Frontend: tail -f frontend.log"
 echo ""
 echo "📊 Контейнеры:"
-echo "   podman ps"
+echo "   $CONTAINER_CMD ps"
 echo ""
 echo "🛑 Для остановки:"
 echo "   ./stop-demo.sh"
