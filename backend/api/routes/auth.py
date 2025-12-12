@@ -3,10 +3,12 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import timedelta
+from sqlalchemy.orm import Session
 
 from backend.models.user import User
 from backend.auth.jwt_handler import create_access_token
 from backend.auth.dependencies import get_current_user
+from backend.database import get_db
 
 router = APIRouter()
 
@@ -52,10 +54,10 @@ class UserResponse(BaseModel):
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(request: RegisterRequest):
+async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     """Регистрация нового пользователя"""
     # Проверка, существует ли пользователь
-    if User.exists(request.username):
+    if User.exists(request.username, db=db):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Пользователь с таким именем уже существует"
@@ -66,7 +68,8 @@ async def register(request: RegisterRequest):
         user = User.create(
             username=request.username,
             password=request.password,
-            secret_code=request.secret_code
+            secret_code=request.secret_code,
+            db=db
         )
     except ValueError as e:
         raise HTTPException(
@@ -87,11 +90,11 @@ async def register(request: RegisterRequest):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest):
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
     """Вход в систему"""
     # Загрузка пользователя
-    user = User(request.username)
-    if not user.load():
+    user = User(request.username, db=db)
+    if not user.load(db=db):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверное имя пользователя или пароль"
@@ -105,7 +108,7 @@ async def login(request: LoginRequest):
         )
     
     # Обновление времени последнего входа
-    user.update_last_login()
+    user.update_last_login(db=db)
     
     # Создание токена
     access_token = create_access_token(
@@ -120,11 +123,11 @@ async def login(request: LoginRequest):
 
 
 @router.post("/recover-password", status_code=status.HTTP_200_OK)
-async def recover_password(request: RecoverPasswordRequest):
+async def recover_password(request: RecoverPasswordRequest, db: Session = Depends(get_db)):
     """Восстановление пароля по секретному коду"""
     # Загрузка пользователя
-    user = User(request.username)
-    if not user.load():
+    user = User(request.username, db=db)
+    if not user.load(db=db):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Пользователь не найден"
@@ -139,16 +142,19 @@ async def recover_password(request: RecoverPasswordRequest):
     
     # Установка нового пароля
     user.set_password(request.new_password)
-    user.save()
+    user.save(db=db)
     
     return {"message": "Пароль успешно изменён"}
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(username: str = Depends(get_current_user)):
+async def get_current_user_info(
+    username: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Получить информацию о текущем пользователе"""
-    user = User(username)
-    if not user.load():
+    user = User(username, db=db)
+    if not user.load(db=db):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Пользователь не найден"
@@ -164,11 +170,12 @@ async def get_current_user_info(username: str = Depends(get_current_user)):
 @router.post("/change-password", status_code=status.HTTP_200_OK)
 async def change_password(
     request: ChangePasswordRequest,
-    username: str = Depends(get_current_user)
+    username: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Изменить пароль (требует аутентификации)"""
-    user = User(username)
-    if not user.load():
+    user = User(username, db=db)
+    if not user.load(db=db):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Пользователь не найден"
@@ -183,7 +190,7 @@ async def change_password(
     
     # Установка нового пароля
     user.set_password(request.new_password)
-    user.save()
+    user.save(db=db)
     
     return {"message": "Пароль успешно изменён"}
 

@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     # Режим разработки (для Windows/тестирования без Podman)
     MOCK_SANDBOX: bool = False  # Использовать mock-песочницы вместо реальных контейнеров
     
+    # База данных PostgreSQL
+    DATABASE_URL: str = "postgresql://trainer_user:trainer_password@localhost:5432/trainer_db"
+    # Формат: postgresql://user:password@host:port/database
+    # Можно переопределить через переменную окружения DATABASE_URL или .env файл
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

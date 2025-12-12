@@ -313,6 +313,71 @@ else
     echo "✅ npm установлен: $(npm --version)"
 fi
 
+# PostgreSQL
+if ! command -v psql &> /dev/null; then
+    echo "📦 Установка PostgreSQL..."
+    if install_package "postgresql"; then
+        install_package "postgresql-contrib"
+        echo "✅ PostgreSQL установлен"
+        
+        # Проверяем, запущен ли PostgreSQL
+        if [ "$HAS_SUDO" = true ]; then
+            echo "⚙️  Запуск PostgreSQL..."
+            sudo systemctl start postgresql 2>/dev/null || true
+            sudo systemctl enable postgresql 2>/dev/null || true
+            
+            # Создание базы данных и пользователя
+            echo "🔧 Настройка базы данных..."
+            echo "   Создание базы данных и пользователя..."
+            
+            # Создаем скрипт для настройки БД
+            DB_SETUP_SCRIPT="/tmp/setup_db.sql"
+            cat > "$DB_SETUP_SCRIPT" << 'DBEOF'
+-- Создание пользователя (если не существует)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'trainer_user') THEN
+        CREATE USER trainer_user WITH PASSWORD 'trainer_password';
+    END IF;
+END
+$$;
+
+-- Создание базы данных (если не существует)
+SELECT 'CREATE DATABASE trainer_db OWNER trainer_user'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'trainer_db')\gexec
+
+-- Предоставление прав
+GRANT ALL PRIVILEGES ON DATABASE trainer_db TO trainer_user;
+DBEOF
+            
+            # Выполняем скрипт от имени postgres
+            sudo -u postgres psql -f "$DB_SETUP_SCRIPT" 2>/dev/null || {
+                echo "⚠️  Не удалось автоматически настроить базу данных"
+                echo "💡 Выполните вручную:"
+                echo "   sudo -u postgres psql"
+                echo "   CREATE USER trainer_user WITH PASSWORD 'trainer_password';"
+                echo "   CREATE DATABASE trainer_db OWNER trainer_user;"
+                echo "   \\q"
+            }
+            
+            rm -f "$DB_SETUP_SCRIPT"
+        fi
+    else
+        echo "⚠️  Не удалось установить PostgreSQL (нет прав sudo)"
+        echo "💡 Установите вручную: sudo apt-get install postgresql postgresql-contrib"
+    fi
+else
+    echo "✅ PostgreSQL установлен: $(psql --version | head -1)"
+    
+    # Проверяем, запущен ли PostgreSQL
+    if [ "$HAS_SUDO" = true ]; then
+        if ! sudo systemctl is-active --quiet postgresql; then
+            echo "⚙️  Запуск PostgreSQL..."
+            sudo systemctl start postgresql 2>/dev/null || true
+        fi
+    fi
+fi
+
 # Podman или Docker
 if ! command -v podman &> /dev/null && ! command -v docker &> /dev/null; then
     echo "📦 Установка Podman..."
@@ -517,6 +582,16 @@ else
     echo ""
     echo "💡 Попробуйте установить вручную:"
     echo "   cd backend && source venv/bin/activate && pip install -r requirements.txt"
+fi
+
+# Инициализация базы данных
+echo "   Инициализация базы данных PostgreSQL..."
+if python init_db.py 2>&1; then
+    echo "✅ База данных инициализирована"
+else
+    echo "⚠️  Не удалось инициализировать базу данных"
+    echo "💡 Убедитесь, что PostgreSQL запущен и база данных создана"
+    echo "💡 Выполните вручную: python init_db.py"
 fi
 
 deactivate

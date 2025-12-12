@@ -12,16 +12,17 @@ function Layout({ children }) {
   // Не показываем Layout на страницах аутентификации
   const isAuthPage = ['/login', '/register', '/recover-password'].includes(location.pathname)
   
-  if (isAuthPage) {
-    return <>{children}</>
-  }
-  
+  // Хуки должны вызываться до условных возвратов
   const { data: progress } = useQuery({
     queryKey: ['progress'],
     queryFn: () => getProgress(),
     retry: false,
-    enabled: isAuthenticated
+    enabled: isAuthenticated && !isAuthPage  // Не выполняем запрос на страницах аутентификации
   })
+  
+  if (isAuthPage) {
+    return <>{children}</>
+  }
   
   const handleLogout = () => {
     logout()
@@ -42,7 +43,7 @@ function Layout({ children }) {
       <header className="header">
         <div className="header-content">
           <Link to="/" className="logo">
-            <h1>🛡️ Тренажёр Astra Linux</h1>
+            <h1>🛡️ Linux Training Simulator</h1>
           </Link>
           <div className="header-stats">
             <div className="stat-item">

@@ -27,15 +27,43 @@ echo ""
 
 # Проверка образов
 echo "📦 Проверка образов контейнеров..."
-IMAGE_FOUND=false
 
-# Проверяем наличие образов (поддерживаем разные имена)
-if $CONTAINER_CMD images --format "{{.Repository}}:{{.Tag}}" | grep -qE "(localhost/astra-linux|astra-linux)"; then
+# Функция для проверки наличия образов
+check_images() {
+    # Получаем список всех образов (используем обычный вывод для надежности)
+    local images_output
+    images_output=$($CONTAINER_CMD images 2>/dev/null)
+    
+    if [ -z "$images_output" ]; then
+        return 1
+    fi
+    
+    # Проверяем наличие образов по имени репозитория (первая колонка)
+    # Ищем: localhost/astra-linux, localhost/linux-sandbox, astra-linux, linux-sandbox
+    if echo "$images_output" | awk 'NR>1 {print $1}' | grep -qE "^(localhost/)?(astra-linux|linux-sandbox)$"; then
+        return 0
+    fi
+    
+    # Также проверяем полные имена с тегами в первой колонке
+    if echo "$images_output" | awk 'NR>1 {print $1}' | grep -qE "(localhost/)?(astra-linux|linux-sandbox)"; then
+        return 0
+    fi
+    
+    return 1
+}
+
+IMAGE_FOUND=false
+if check_images; then
     IMAGE_FOUND=true
-    echo "✅ Образы контейнеров найдены"
-elif $CONTAINER_CMD images --format "{{.Repository}}:{{.Tag}}" | grep -qE "(localhost/linux-sandbox|linux-sandbox)"; then
-    IMAGE_FOUND=true
-    echo "✅ Образы контейнеров найдены"
+    echo "✅ Образы контейнеров найдены:"
+    # Показываем найденные образы
+    echo ""
+    if $CONTAINER_CMD images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -E "(localhost/astra-linux|localhost/linux-sandbox|^astra-linux|^linux-sandbox)" 2>/dev/null | head -5; then
+        : # Успешно показали через форматированный вывод
+    else
+        # Fallback: показываем через обычный вывод
+        $CONTAINER_CMD images 2>/dev/null | grep -E "(REPOSITORY|localhost/astra-linux|localhost/linux-sandbox|astra-linux.*se|astra-linux.*vnc|linux-sandbox.*base|linux-sandbox.*vnc)" | head -5
+    fi
 fi
 
 if [ "$IMAGE_FOUND" = false ]; then
@@ -81,11 +109,15 @@ if [ "$IMAGE_FOUND" = false ]; then
         cd ..
         
         # Проверяем снова после создания
-        if ! $CONTAINER_CMD images --format "{{.Repository}}:{{.Tag}}" | grep -qE "(localhost/astra-linux|astra-linux)"; then
+        if check_images; then
+            echo "✅ Образы созданы успешно"
+            echo ""
+            echo "📋 Созданные образы:"
+            $CONTAINER_CMD images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -E "(localhost/astra-linux|localhost/linux-sandbox|^astra-linux|^linux-sandbox)" || \
+            $CONTAINER_CMD images | grep -E "(REPOSITORY|localhost/astra-linux|localhost/linux-sandbox|astra-linux|linux-sandbox)" | head -5
+        else
             echo "⚠️  Образы не были созданы успешно"
             echo "💡 Продолжаем без образов (некоторые функции могут быть недоступны)"
-        else
-            echo "✅ Образы созданы успешно"
         fi
     else
         echo "⚠️  Продолжаем без образов (некоторые функции могут быть недоступны)"

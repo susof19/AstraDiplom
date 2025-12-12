@@ -212,6 +212,60 @@ else
     echo "✅ Podman установлен: $(podman --version)"
 fi
 
+# PostgreSQL
+if ! command -v psql &> /dev/null; then
+    echo "📦 Установка PostgreSQL..."
+    if install_package "postgresql"; then
+        install_package "postgresql-contrib"
+        echo "✅ PostgreSQL установлен"
+        
+        # Запуск PostgreSQL
+        echo "⚙️  Запуск PostgreSQL..."
+        sudo systemctl start postgresql 2>/dev/null || true
+        sudo systemctl enable postgresql 2>/dev/null || true
+        
+        # Создание базы данных и пользователя
+        echo "🔧 Настройка базы данных..."
+        DB_SETUP_SCRIPT="/tmp/setup_db.sql"
+        cat > "$DB_SETUP_SCRIPT" << 'DBEOF'
+-- Создание пользователя (если не существует)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'trainer_user') THEN
+        CREATE USER trainer_user WITH PASSWORD 'trainer_password';
+    END IF;
+END
+$$;
+
+-- Создание базы данных (если не существует)
+SELECT 'CREATE DATABASE trainer_db OWNER trainer_user'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'trainer_db')\gexec
+
+-- Предоставление прав
+GRANT ALL PRIVILEGES ON DATABASE trainer_db TO trainer_user;
+DBEOF
+        
+        sudo -u postgres psql -f "$DB_SETUP_SCRIPT" 2>/dev/null || {
+            echo "⚠️  Не удалось автоматически настроить базу данных"
+            echo "💡 Выполните вручную:"
+            echo "   sudo -u postgres psql"
+            echo "   CREATE USER trainer_user WITH PASSWORD 'trainer_password';"
+            echo "   CREATE DATABASE trainer_db OWNER trainer_user;"
+            echo "   \\q"
+        }
+        
+        rm -f "$DB_SETUP_SCRIPT"
+    fi
+else
+    echo "✅ PostgreSQL установлен: $(psql --version | head -1)"
+    
+    # Проверяем, запущен ли PostgreSQL
+    if ! sudo systemctl is-active --quiet postgresql; then
+        echo "⚙️  Запуск PostgreSQL..."
+        sudo systemctl start postgresql 2>/dev/null || true
+    fi
+fi
+
 # Дополнительные зависимости
 install_package "git"
 install_package "curl"
@@ -292,6 +346,16 @@ else
     echo "💡 Показываем последние строки лога:"
     tail -30 /tmp/pip-install.log 2>/dev/null || true
     echo "💡 Попробуйте установить вручную: cd backend && source venv/bin/activate && pip install -r requirements.txt"
+fi
+
+# Инициализация базы данных
+echo "   Инициализация базы данных PostgreSQL..."
+if python init_db.py 2>&1; then
+    echo "✅ База данных инициализирована"
+else
+    echo "⚠️  Не удалось инициализировать базу данных"
+    echo "💡 Убедитесь, что PostgreSQL запущен и база данных создана"
+    echo "💡 Выполните вручную: python init_db.py"
 fi
 
 # Frontend

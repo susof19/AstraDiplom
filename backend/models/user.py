@@ -1,15 +1,9 @@
 """Модель пользователя"""
-from datetime import datetime
-from typing import Optional, Dict
-from pathlib import Path
-import json
-import hashlib
-from passlib.context import CryptContext
+# Импортируем модель из user_db для работы с PostgreSQL
+from backend.models.user_db import User
 
-from backend.config import settings
-
-# Контекст для хеширования паролей
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Экспортируем для обратной совместимости
+__all__ = ["User"]
 
 
 class User:
