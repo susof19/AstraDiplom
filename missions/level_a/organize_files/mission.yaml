@@ -13,14 +13,29 @@ hints:
   - "Используйте файловый менеджер для создания папки"
   - "Можно использовать поиск для фильтрации файлов"
 
+setup:
+  # Создаём тестовые файлы .docx в папке Загрузки
+  directories:
+    - "/home/sandboxuser/Загрузки"
+    - "/home/sandboxuser/Работа"
+  files:
+    - path: "/home/sandboxuser/Загрузки/file1.docx"
+      content: "test_doc_content_1"
+    - path: "/home/sandboxuser/Загрузки/file2.docx"
+      content: "test_doc_content_2"
+    - path: "/home/sandboxuser/Загрузки/other.txt"
+      content: "this_should_not_be_moved"
+
 checks:
   - name: "Папка создана"
     type: "file_exists"
-    path: "/home/user/Работа"
+    path: "/home/sandboxuser/Работа"
+    file_type: "directory"
     points: 30
   - name: "Файлы перемещены"
     type: "command_output"
-    command: "find /home/user/Работа -name '*.docx' | wc -l"
-    expected: "0"
+    command: "find /home/sandboxuser/Работа -name '*.docx' | wc -l"
+    expected: "2"
+    operator: "equals"
     points: 70
 

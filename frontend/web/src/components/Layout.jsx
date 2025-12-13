@@ -42,7 +42,7 @@ function Layout({ children }) {
   const stats = progress || {
     total_score: 0,
     total_missions_completed: 0,
-    level_progress: { A: 0, B: 0, C: 0 }
+    level_progress: { A: 0 }
   }
 
   const totalMissions = stats.total_missions_completed || 0

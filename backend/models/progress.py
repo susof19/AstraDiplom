@@ -15,7 +15,7 @@ class UserProgress:
         self.progress_file = settings.SANDBOX_DATA_DIR / f"progress_{user_id}.json"
         self.missions_completed: Dict[str, Dict] = {}
         self.total_score: int = 0
-        self.level_progress: Dict[str, int] = {"A": 0, "B": 0, "C": 0}
+        self.level_progress: Dict[str, int] = {"A": 0}
         self.achievements: List[str] = []
         self.last_updated: Optional[datetime] = None
         
@@ -27,7 +27,7 @@ class UserProgress:
                     data = json.load(f)
                     self.missions_completed = data.get("missions_completed", {})
                     self.total_score = data.get("total_score", 0)
-                    self.level_progress = data.get("level_progress", {"A": 0, "B": 0, "C": 0})
+                    self.level_progress = data.get("level_progress", {"A": 0})
                     self.achievements = data.get("achievements", [])
                     if data.get("last_updated"):
                         self.last_updated = datetime.fromisoformat(data["last_updated"])
@@ -81,9 +81,6 @@ class UserProgress:
             ("first_mission", lambda: len(self.missions_completed) == 1),
             ("perfect_score", lambda: score == 100),
             ("level_a_master", lambda: self.level_progress.get("A", 0) >= 5),
-            ("level_b_master", lambda: self.level_progress.get("B", 0) >= 5),
-            ("level_c_master", lambda: self.level_progress.get("C", 0) >= 5),
-            ("all_levels", lambda: all(self.level_progress.get(l, 0) > 0 for l in ["A", "B", "C"])),
             ("high_score", lambda: self.total_score >= 1000),
         ]
         

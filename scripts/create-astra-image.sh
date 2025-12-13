@@ -125,28 +125,17 @@ if [ "$SHOW_HELP" = true ]; then
   # Использовать конкретный базовый образ
   ./create-astra-image.sh --base ubuntu:22.04 --vnc
 
-Результат:
-  Базовый образ:  localhost/linux-sandbox:base
-  Образ с VNC:    localhost/linux-sandbox:vnc
+Результат (новая схема именования):
+  Базовый образ:  localhost/linux-base:{distro} (debian/ubuntu/astra)
+  Образ с VNC:    localhost/linux-gui-vnc:{distro} (debian/ubuntu/astra)
+  
+Также создаются legacy теги для обратной совместимости:
+  localhost/linux-sandbox:base
+  localhost/linux-sandbox:vnc
 
 EOF
     exit 0
 fi
-
-# Определяем имя образа
-if [ "$USE_VNC" = true ]; then
-    IMAGE_TAG="vnc"
-    IMAGE_NAME="linux-sandbox:vnc"
-else
-    IMAGE_TAG="base"
-    IMAGE_NAME="linux-sandbox:base"
-fi
-
-echo "🔨 Создание образа контейнера для Linux Training Simulator"
-echo "Контейнерная система: $CONTAINER_CMD"
-echo "VNC: $([ "$USE_VNC" = true ] && echo "включен" || echo "выключен")"
-echo "Итоговый образ: localhost/$IMAGE_NAME"
-echo ""
 
 # Определяем установленную ОС
 detect_os
@@ -168,9 +157,10 @@ if [ -z "$BASE_IMAGE" ]; then
     echo "  3) Ubuntu 22.04 LTS"
     echo "  4) Ubuntu 24.04 LTS"
     echo "  5) Astra Linux (из реестра, если доступен)"
-    echo "  6) Указать свой образ"
+    echo "  6) Astra Linux с VNC (из репозитория shinbatsu/astra-ui-vnc-container)"
+    echo "  7) Указать свой образ"
     echo ""
-    read -p "Выберите вариант (1-6): " -n 1 -r
+    read -p "Выберите вариант (1-7): " -n 1 -r
     echo
     echo ""
     
@@ -228,6 +218,30 @@ if [ -z "$BASE_IMAGE" ]; then
             fi
             ;;
         6)
+            # Используем образ Astra Linux с VNC из репозитория shinbatsu/astra-ui-vnc-container
+            echo "📥 Настройка образа Astra Linux с VNC из репозитория..."
+            echo ""
+            if [ -f "$SCRIPT_DIR/setup-astra-vnc-image.sh" ]; then
+                echo "💡 Запускаем скрипт setup-astra-vnc-image.sh..."
+                bash "$SCRIPT_DIR/setup-astra-vnc-image.sh"
+                if [ $? -eq 0 ]; then
+                    # Используем готовый образ
+                    BASE_IMAGE="localhost/astra-vnc:latest"
+                    USE_VNC=true  # Принудительно включаем VNC
+                    echo "✅ Образ готов: $BASE_IMAGE"
+                    echo "💡 Этот образ уже содержит VNC, флаг --vnc включен автоматически"
+                else
+                    echo "❌ Не удалось настроить образ из репозитория"
+                    echo "💡 Используем Debian 12 как альтернативу"
+                    BASE_IMAGE="debian:12"
+                fi
+            else
+                echo "❌ Скрипт setup-astra-vnc-image.sh не найден"
+                echo "💡 Используем Debian 12 как альтернативу"
+                BASE_IMAGE="debian:12"
+            fi
+            ;;
+        7)
             read -p "Введите имя образа (например, debian:12): " BASE_IMAGE
             if [ -z "$BASE_IMAGE" ]; then
                 echo "❌ Образ не указан, используем Debian 12"
@@ -242,6 +256,55 @@ if [ -z "$BASE_IMAGE" ]; then
 fi
 
 echo "📦 Базовый образ: $BASE_IMAGE"
+echo ""
+
+# Определяем дистрибутив из BASE_IMAGE для правильного тега
+DISTRO_TAG="debian"  # По умолчанию
+if echo "$BASE_IMAGE" | grep -qi "ubuntu"; then
+    DISTRO_TAG="ubuntu"
+elif echo "$BASE_IMAGE" | grep -qi "astra"; then
+    DISTRO_TAG="astra"
+fi
+
+# Определяем имя образа
+# Если используется готовый образ astra-vnc, используем его напрямую
+if echo "$BASE_IMAGE" | grep -qi "astra-vnc"; then
+    IMAGE_NAME="localhost/astra-vnc:latest"
+    echo "✅ Используем готовый образ Astra Linux с VNC: $IMAGE_NAME"
+    echo "💡 Образ уже содержит VNC и готов к использованию"
+    echo ""
+    echo "=================================================="
+    echo "✅ Образ готов к использованию!"
+    echo ""
+    echo "📋 Информация об образе:"
+    $CONTAINER_CMD images | grep -E "astra-vnc|REPOSITORY"
+    echo ""
+    echo "💡 Образ будет использоваться автоматически при выборе дистрибутива 'astra'"
+    echo "   в настройках песочницы"
+    echo "=================================================="
+    exit 0
+elif [ "$USE_VNC" = true ]; then
+    IMAGE_TAG="vnc"
+    # Новая схема именования: linux-gui-vnc:{distro}
+    IMAGE_NAME="linux-gui-vnc:${DISTRO_TAG}"
+    # Также создаем legacy тег для обратной совместимости
+    IMAGE_NAME_LEGACY="linux-sandbox:vnc"
+else
+    IMAGE_TAG="base"
+    # Новая схема именования: linux-base:{distro}
+    IMAGE_NAME="linux-base:${DISTRO_TAG}"
+    # Также создаем legacy тег для обратной совместимости
+    IMAGE_NAME_LEGACY="linux-sandbox:base"
+fi
+
+echo "🔨 Создание образа контейнера для Linux Training Simulator"
+echo "Контейнерная система: $CONTAINER_CMD"
+echo "VNC: $([ "$USE_VNC" = true ] && echo "включен" || echo "выключен")"
+echo "Дистрибутив: $DISTRO_TAG"
+echo "Итоговый образ: localhost/$IMAGE_NAME"
+if [ -n "$IMAGE_NAME_LEGACY" ]; then
+    echo "Legacy тег (для совместимости): localhost/$IMAGE_NAME_LEGACY"
+fi
 echo ""
 
 # Загрузка базового образа
@@ -276,6 +339,12 @@ if [ "$USE_VNC" = true ]; then
         . 2>&1; then
         echo ""
         echo "✅ Образ с VNC успешно создан: localhost/$IMAGE_NAME"
+        # Создаем legacy тег для обратной совместимости
+        if [ -n "$IMAGE_NAME_LEGACY" ]; then
+            if $CONTAINER_CMD tag "localhost/$IMAGE_NAME" "localhost/$IMAGE_NAME_LEGACY" 2>&1; then
+                echo "✅ Legacy тег создан: localhost/$IMAGE_NAME_LEGACY"
+            fi
+        fi
     else
         echo "❌ Ошибка при сборке образа"
         exit 1
@@ -287,6 +356,12 @@ else
     echo "🏷️  Тегирование базового образа..."
     if $CONTAINER_CMD tag "$BASE_IMAGE" "localhost/$IMAGE_NAME" 2>&1; then
         echo "✅ Базовый образ создан: localhost/$IMAGE_NAME"
+        # Создаем legacy тег для обратной совместимости
+        if [ -n "$IMAGE_NAME_LEGACY" ]; then
+            if $CONTAINER_CMD tag "localhost/$IMAGE_NAME" "localhost/$IMAGE_NAME_LEGACY" 2>&1; then
+                echo "✅ Legacy тег создан: localhost/$IMAGE_NAME_LEGACY"
+            fi
+        fi
     else
         echo "❌ Ошибка при тегировании образа"
         exit 1
@@ -296,7 +371,7 @@ fi
 # Показываем результат
 echo ""
 echo "📋 Доступные образы:"
-$CONTAINER_CMD images | grep -E "REPOSITORY|localhost/linux-sandbox|linux-sandbox" || $CONTAINER_CMD images | head -5
+$CONTAINER_CMD images | grep -E "REPOSITORY|localhost/linux-(gui-vnc|base|sandbox)" || $CONTAINER_CMD images | head -5
 
 echo ""
 echo "💡 Тестовый запуск:"

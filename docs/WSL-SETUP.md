@@ -2,6 +2,31 @@
 
 Это руководство поможет вам установить и запустить Linux Training Simulator в WSL.
 
+## Быстрый старт
+
+### Установка (один раз)
+
+```bash
+# В WSL терминале
+cd /path/to/AstraDiplom
+chmod +x scripts/quickstart-wsl.sh
+./scripts/quickstart-wsl.sh
+```
+
+### Запуск
+
+```bash
+./start-demo-wsl.sh
+```
+
+Откройте в браузере Windows: **http://localhost:3000**
+
+### Остановка
+
+```bash
+./stop-demo.sh
+```
+
 ## Предварительные требования
 
 1. **WSL 2** установлен и настроен
@@ -13,22 +38,9 @@
    - Установите и запустите Docker Desktop
    - Включите интеграцию с WSL в настройках Docker Desktop
 
-## Быстрая установка
+## Что делает скрипт установки
 
-1. Откройте WSL терминал
-
-2. Перейдите в директорию проекта:
-   ```bash
-   cd /path/to/AstraDiplom
-   ```
-
-3. Запустите скрипт установки:
-   ```bash
-   chmod +x scripts/quickstart-wsl.sh
-   ./scripts/quickstart-wsl.sh
-   ```
-
-Скрипт автоматически:
+Скрипт `quickstart-wsl.sh` автоматически:
 - Установит все зависимости (Python, Node.js, PostgreSQL)
 - Настроит виртуальное окружение
 - Установит зависимости backend и frontend
@@ -47,17 +59,6 @@
 - **Frontend**: http://localhost:3000 (откройте в браузере Windows)
 - **Backend API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
-
-## Остановка приложения
-
-```bash
-./stop-demo.sh
-```
-
-Или вручную:
-```bash
-kill $(cat .backend.pid) $(cat .frontend.pid)
-```
 
 ## Особенности WSL
 
@@ -238,4 +239,14 @@ rm -rf backend/venv frontend/web/node_modules
 - Логи frontend: `tail -f frontend.log`
 - API документация: http://localhost:8000/docs
 - Health check: http://localhost:8000/health
+
+## Важно для WSL
+
+1. **Docker Desktop** должен быть запущен в Windows
+2. **PostgreSQL** запускается автоматически при старте через `start-demo-wsl.sh`
+3. Frontend доступен на `localhost:3000` в браузере Windows
+
+## Проблемы?
+
+См. также: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 

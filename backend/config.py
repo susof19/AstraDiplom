@@ -2,12 +2,15 @@
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
+# Определяем BASE_DIR до создания класса
+BASE_DIR = Path(__file__).parent.parent
+
 
 class Settings(BaseSettings):
     """Настройки приложения"""
     
     # Пути
-    BASE_DIR: Path = Path(__file__).parent.parent
+    BASE_DIR: Path = BASE_DIR
     MISSIONS_DIR: Path = BASE_DIR / "missions"
     IMAGES_DIR: Path = BASE_DIR / "images"
     SANDBOX_DATA_DIR: Path = BASE_DIR / "sandbox_data"
@@ -46,13 +49,38 @@ class Settings(BaseSettings):
     # Режим разработки (для Windows/тестирования без Podman)
     MOCK_SANDBOX: bool = False  # Использовать mock-песочницы вместо реальных контейнеров
     
+    # Выбор дистрибутива для песочниц
+    # Поддерживаемые: debian, ubuntu, astra
+    DEFAULT_DISTRO: str = "debian"  # Дистрибутив по умолчанию
+    # Маппинг дистрибутивов на базовые образы
+    # Для B/C миссий используются стандартные образы из Docker Hub
+    # Для astra используется debian как fallback, так как astra-linux:se требует debootstrap
+    DISTRO_BASE_IMAGES: dict[str, str] = {
+        "debian": "debian:12",
+        "ubuntu": "ubuntu:22.04",
+        "astra": "debian:12"  # Используем debian как fallback для astra в B/C миссиях (astra-linux:se требует debootstrap)
+    }
+    # Маппинг дистрибутивов на GUI образы (с VNC)
+    DISTRO_GUI_IMAGES: dict[str, str] = {
+        "debian": "localhost/linux-gui-vnc:debian",
+        "ubuntu": "localhost/linux-gui-vnc:ubuntu",
+        # Для Astra Linux используется образ из репозитория shinbatsu/astra-ui-vnc-container
+        # Если он недоступен, используйте вместо этого: "localhost/linux-gui-vnc:astra"
+        # (создается через: ./scripts/create-astra-image.sh --vnc, вариант 5)
+        "astra": "localhost/astra-vnc:latest"
+    }
+    
     # База данных PostgreSQL
     DATABASE_URL: str = "postgresql://trainer_user:trainer_password@localhost:5432/trainer_db"
     # Формат: postgresql://user:password@host:port/database
     # Можно переопределить через переменную окружения DATABASE_URL или .env файл
     
     class Config:
-        env_file = ".env"
+        # .env файл должен находиться в директории backend/
+        # pydantic-settings ищет .env относительно текущей рабочей директории
+        # или можно указать явный путь через env_file
+        env_file = str(BASE_DIR / "backend" / ".env")
+        env_file_encoding = "utf-8"
         case_sensitive = True
 
 

@@ -128,6 +128,17 @@
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
 }
 
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
 .sandbox-container {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -150,18 +161,6 @@
   background: rgba(59, 130, 246, 0.2);
   color: var(--accent-blue);
   border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.level-badge.level-B {
-  background: rgba(245, 158, 11, 0.2);
-  color: var(--accent-yellow);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.level-badge.level-C {
-  background: rgba(236, 72, 153, 0.2);
-  color: #ec4899;
-  border: 1px solid rgba(236, 72, 153, 0.3);
 }
 
 .loading, .error {

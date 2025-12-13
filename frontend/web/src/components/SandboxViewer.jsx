@@ -48,6 +48,8 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
   const [vncReady, setVncReady] = useState(false)
   const [vncError, setVncError] = useState(null)
   const [loadingStage, setLoadingStage] = useState(null)
+  const [connectionTimeout, setConnectionTimeout] = useState(false)
+  const [showIframe, setShowIframe] = useState(false) // Задержка перед показом iframe
   
   const { data: sandbox, isLoading, isFetching } = useQuery({
     queryKey: ['sandbox', missionId],
@@ -104,29 +106,78 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
 
   useEffect(() => {
     if (sandbox?.novnc_port && sandbox?.vnc_url) {
-      // Проверяем готовность VNC сервера
-      const checkVncReady = async () => {
-        try {
-          const response = await fetch(`http://localhost:${sandbox.novnc_port}/`)
-          if (response.ok) {
+      let retryCount = 0
+      const maxRetries = 60 // 2 минуты максимум (60 * 2 секунды)
+      let connectionCheckInterval = null
+      
+      // Проверяем готовность VNC сервера через проверку наличия порта и URL
+      // Не используем fetch напрямую из-за CORS и проблем с localhost в браузере
+      const checkVncReady = () => {
+        retryCount++
+        
+        // Если есть novnc_port и vnc_url, считаем что VNC готов
+        // Фактическую доступность проверит iframe
+        if (sandbox.novnc_port && sandbox.vnc_url) {
+          // Даем время на запуск (увеличено для более надежного запуска noVNC)
+          if (retryCount >= 5) { // После 5 попыток (10 секунд) считаем готовым
             setVncReady(true)
             setVncError(null)
             setLoadingStage(LOADING_STAGES.READY)
+            // Добавляем дополнительную задержку перед показом iframe (2 секунды)
+            setTimeout(() => {
+              setShowIframe(true)
+            }, 2000)
+            retryCount = 0
           } else {
-            setVncError('VNC сервер запускается...')
+            setVncError(`VNC сервер запускается... (попытка ${retryCount}/${maxRetries})`)
           }
-        } catch (error) {
-          console.error('VNC не готов:', error)
-          setVncError('VNC сервер запускается...')
+        } else {
+          if (retryCount < maxRetries) {
+            setVncError(`Ожидание информации о VNC портах... (попытка ${retryCount}/${maxRetries})`)
+          } else {
+            setVncError('VNC сервер не отвечает. Проверьте логи контейнера.')
+          }
+        }
+      }
+      
+      // Проверка состояния соединения - если iframe показывает экран подключения долгое время
+      const checkConnectionStatus = () => {
+        // Если прошло больше 30 секунд (15 попыток * 2 сек) и соединение не установлено
+        if (retryCount > 15 && !vncReady) {
+          setConnectionTimeout(true)
+          setVncError('Не удалось установить соединение с VNC сервером. Возможно, рабочий стол не запущен.')
         }
       }
       
       checkVncReady()
       const interval = setInterval(checkVncReady, 2000)
+      connectionCheckInterval = setInterval(checkConnectionStatus, 2000)
       
-      return () => clearInterval(interval)
+      return () => {
+        if (interval) clearInterval(interval)
+        if (connectionCheckInterval) clearInterval(connectionCheckInterval)
+        retryCount = 0
+      }
+    } else {
+      // Если нет novnc_port или песочница остановлена, сбрасываем состояние
+      setVncReady(false)
+      setVncError(null)
+      setLoadingStage(null)
+      setConnectionTimeout(false)
+      setShowIframe(false)
     }
-  }, [sandbox])
+  }, [sandbox, vncReady])
+  
+  // Отслеживаем изменения статуса песочницы - если она остановлена, возвращаемся к исходному состоянию
+  useEffect(() => {
+    if (sandbox && (sandbox.status === 'stopped' || sandbox.status === 'removed')) {
+      setVncReady(false)
+      setVncError(null)
+      setLoadingStage(null)
+      setConnectionTimeout(false)
+      setShowIframe(false)
+    }
+  }, [sandbox?.status])
 
   // Компонент индикатора загрузки с этапами
   const LoadingIndicator = ({ stage }) => {
@@ -165,7 +216,9 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
   // 1. Идет начальная загрузка
   // 2. Идет создание песочницы
   // 3. Песочница есть, но еще не готова (не достигнут этап READY)
-  const showLoading = isLoading || isCreating || (sandbox && loadingStage && loadingStage.id !== 'ready') || (!sandbox && isCreating)
+  // 4. Песочница остановлена или удалена - возвращаемся к исходному состоянию
+  const isSandboxStopped = sandbox && (sandbox.status === 'stopped' || sandbox.status === 'removed')
+  const showLoading = isLoading || isCreating || (sandbox && !isSandboxStopped && loadingStage && loadingStage.id !== 'ready') || (!sandbox && isCreating)
   
   if (showLoading) {
     return (
@@ -177,11 +230,12 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     )
   }
 
-  if (!sandbox) {
+  // Если песочница остановлена, удалена или не существует - показываем исходное состояние
+  if (!sandbox || isSandboxStopped) {
     return (
       <div className="sandbox-viewer">
         <div className="sandbox-placeholder">
-          <p>Песочница не запущена</p>
+          <p>{isSandboxStopped ? 'Песочница остановлена' : 'Песочница не запущена'}</p>
           <p className="hint">Нажмите "Запустить песочницу" для начала работы</p>
         </div>
       </div>
@@ -189,56 +243,105 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
   }
 
   // Для уровня A - GUI через noVNC
-  if ((level === 'A' || sandbox.novnc_port) && sandbox.vnc_url) {
+  // Показываем VNC только если песочница запущена
+  if ((level === 'A' || sandbox.novnc_port) && sandbox.vnc_url && sandbox.status === 'running' && !isSandboxStopped) {
+    // Если соединение не установлено долгое время, показываем сообщение о проблеме
+    const showConnectionError = vncError && vncError.includes('Не удалось установить соединение')
+    
     return (
       <div className="sandbox-viewer">
         <div className="sandbox-header">
-          <span className={`status-indicator ${vncReady ? 'active' : 'pending'}`}>
-            {vncReady ? '● Подключено' : '○ Подключение...'}
+          <span className={`status-indicator ${vncReady && !showConnectionError ? 'active' : 'pending'}`}>
+            {vncReady && !showConnectionError ? '● Подключено' : '○ Подключение...'}
           </span>
           <span>noVNC порт: {sandbox.novnc_port}</span>
           {sandbox.vnc_port && <span>VNC порт: {sandbox.vnc_port}</span>}
         </div>
         
-        {vncError && !vncReady && (
+        {showConnectionError && (
           <div className="vnc-loading">
-            <p>⏳ {vncError}</p>
-            <p className="hint">Ожидание запуска VNC сервера в контейнере...</p>
-          </div>
-        )}
-        
-        {vncReady ? (
-          <div className="vnc-container">
-            <iframe
-              ref={iframeRef}
-              src={sandbox.vnc_url}
-              title="Astra Linux Desktop"
-              className="vnc-iframe"
-              allow="clipboard-read; clipboard-write"
-            />
-          </div>
-        ) : (
-          <div className="vnc-container">
-            <div className="vnc-placeholder">
-              <p>🖥️ Запуск рабочего стола Astra Linux...</p>
-              <p className="hint">Пожалуйста, подождите</p>
+            <p>⚠️ {vncError}</p>
+            <p className="hint">Проверьте логи контейнера или перезапустите песочницу</p>
+            <div className="vnc-troubleshooting">
+              <p className="hint" style={{ marginTop: '1rem', color: '#ff9800' }}>
+                💡 Возможные решения:
+              </p>
+              <ul className="hint" style={{ textAlign: 'left', marginTop: '0.5rem' }}>
+                <li>Проверьте, что контейнер запущен: <code>docker ps</code> или <code>podman ps</code></li>
+                <li>Проверьте логи контейнера на наличие ошибок</li>
+                <li>Попробуйте перезапустить песочницу</li>
+              </ul>
             </div>
           </div>
         )}
         
-        <div className="sandbox-footer">
-          <p className="hint">
-            💡 Совет: Используйте полноэкранный режим для лучшего опыта
-          </p>
-          <a 
-            href={sandbox.vnc_url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="external-link"
-          >
-            Открыть в новом окне ↗
-          </a>
-        </div>
+        {/* Показываем iframe только после задержки для загрузки noVNC */}
+        {!showConnectionError && !connectionTimeout && sandbox.vnc_url && showIframe ? (
+          <div className="vnc-container">
+            <iframe
+              ref={iframeRef}
+              key={sandbox.vnc_url} // Ключ для пересоздания iframe при изменении URL
+              src={sandbox.vnc_url}
+              title="Linux Desktop"
+              className="vnc-iframe"
+              allow="clipboard-read; clipboard-write"
+              onLoad={() => {
+                // Если iframe загрузился, считаем что страница загружена
+                // Но соединение может еще не быть установлено
+                // Даем еще немного времени на установку соединения
+                const timeoutId = setTimeout(() => {
+                  if (sandbox.status === 'running' && !connectionTimeout) {
+                    setVncReady(true)
+                    setVncError(null)
+                    setLoadingStage(LOADING_STAGES.READY)
+                  }
+                }, 5000) // Даем 5 секунд на установку соединения
+                
+                // Очищаем таймаут при размонтировании
+                return () => clearTimeout(timeoutId)
+              }}
+              onError={() => {
+                setVncError('Ошибка загрузки VNC интерфейса. Проверьте, что VNC сервер запущен.')
+                setVncReady(false)
+                setConnectionTimeout(true)
+              }}
+            />
+          </div>
+        ) : (
+          !showConnectionError && (
+            <div className="vnc-container">
+              <div className="vnc-placeholder">
+                {connectionTimeout ? (
+                  <>
+                    <p>⚠️ Соединение не установлено</p>
+                    <p className="hint">Попробуйте перезапустить песочницу</p>
+                  </>
+                ) : (
+                  <>
+                    <p>🖥️ Запуск рабочего стола...</p>
+                    <p className="hint">Пожалуйста, подождите</p>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        )}
+        
+        {!showConnectionError && (
+          <div className="sandbox-footer">
+            <p className="hint">
+              💡 Совет: Используйте полноэкранный режим для лучшего опыта
+            </p>
+            <a 
+              href={sandbox.vnc_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="external-link"
+            >
+              Открыть в новом окне ↗
+            </a>
+          </div>
+        )}
       </div>
     )
   }

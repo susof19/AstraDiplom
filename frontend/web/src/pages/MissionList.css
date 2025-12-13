@@ -91,17 +91,6 @@
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
-.level-tag.level-B {
-  background: rgba(245, 158, 11, 0.2);
-  color: var(--accent-yellow);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.level-tag.level-C {
-  background: rgba(236, 72, 153, 0.2);
-  color: #ec4899;
-  border: 1px solid rgba(236, 72, 153, 0.3);
-}
 
 .difficulty {
   font-size: 0.85rem;

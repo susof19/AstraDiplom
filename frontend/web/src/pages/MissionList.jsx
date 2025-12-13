@@ -17,9 +17,7 @@ function MissionList() {
   }
 
   const levelNames = {
-    A: 'Новички',
-    B: 'Продвинутые',
-    C: 'Администраторы'
+    A: 'Новички'
   }
 
   return (

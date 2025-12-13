@@ -1,33 +1,38 @@
 name: "Копирование файла"
-description: "Скопируйте файл photo.jpg из папки Загрузки в папку Документы"
+description: "Скопируйте файл photo.jpg из папки Downloads в папку Documents"
 level: "A"
 difficulty: 1
 estimated_time: 5
 
 objectives:
   - "Открыть файловый менеджер Thunar"
-  - "Найти файл photo.jpg в папке Загрузки"
-  - "Скопировать файл в папку Документы"
+  - "Найти файл photo.jpg в папке Downloads"
+  - "Скопировать файл в папку Documents"
 
 hints:
   - "Откройте файловый менеджер через Меню → Файловый менеджер"
   - "Или дважды кликните на иконку 'Домашняя папка' на рабочем столе"
-  - "Папка Загрузки: /home/astrauser/Загрузки"
-  - "Папка Документы: /home/astrauser/Документы"
+  - "Папка Downloads (~/Downloads) находится в вашей домашней директории"
+  - "Папка Documents (~/Documents) находится в вашей домашней директории"
   - "Используйте Ctrl+C для копирования и Ctrl+V для вставки"
 
 setup:
-  # Создаём тестовый файл
-  files:
-    - path: "/home/astrauser/Загрузки/photo.jpg"
-      content: "test_photo_content"
-  # Создаём папку Документы если её нет
+  # Создаём необходимые директории (путь будет автоматически заменён на реального пользователя)
+  # Для root: /root/Downloads, /root/Documents
+  # Для других пользователей: /home/username/Downloads, /home/username/Documents
   directories:
-    - "/home/astrauser/Документы"
+    - "/root/Downloads"
+    - "/root/Documents"
+  # Копируем файл из папки миссии
+  files:
+    - path: "/root/Downloads/photo.jpg"
+      source: "photo.jpg"  # Копируем из /mission/photo.jpg
+      mode: "644"
 
 checks:
-  - name: "Файл скопирован в Документы"
+  - name: "Файл скопирован в Documents"
     type: "file_exists"
-    path: "/home/astrauser/Документы/photo.jpg"
+    path: "/root/Documents/photo.jpg"
+    file_type: "file"
     points: 100
 

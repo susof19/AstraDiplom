@@ -26,9 +26,7 @@ astra-trainer/
 ├── frontend/            # Веб-интерфейс
 │   └── web/             # React приложение (Create React App)
 ├── missions/            # Определения миссий
-│   ├── level_a/         # GUI-миссии
-│   ├── level_b/         # CLI-миссии
-│   └── level_c/         # Административные миссии
+│   └── level_a/         # GUI-миссии
 ├── images/              # Dockerfile для образов Astra Linux
 └── config/              # Конфигурационные файлы
 ```
@@ -169,19 +167,20 @@ npm start
 - **[AUTHENTICATION.md](AUTHENTICATION.md)** - Система аутентификации и регистрации
 
 ### Установка на разных системах
+- [docs/WSL-SETUP.md](docs/WSL-SETUP.md) - Установка и запуск на WSL (Windows)
 - [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md) - Установка на Astra Linux
-- [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows
+- [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows (без контейнеров)
 - [docs/SETUP.md](docs/SETUP.md) - Детальная настройка
 
 ### Руководства по компонентам
 - [docs/PODMAN_GUIDE.md](docs/PODMAN_GUIDE.md) - Работа с Podman и создание образов
 - [docs/VNC_GUIDE.md](docs/VNC_GUIDE.md) - VNC для GUI-миссий через браузер
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Решение проблем
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Решение проблем (Backend, БД, образы, VNC, сеть)
 
 ### Техническая документация
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Архитектура системы
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Архитектура системы (компоненты, образы, API)
 - [docs/MISSIONS.md](docs/MISSIONS.md) - Создание миссий
-- [scripts/README.md](scripts/README.md) - Документация скриптов
+- [scripts/README.md](scripts/README.md) - Документация скриптов и настройка дистрибутивов
 
 ### Разработка
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Руководство по вкладу

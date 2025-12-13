@@ -74,6 +74,41 @@
   color: #ff9800;
 }
 
+.vnc-troubleshooting {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: rgba(255, 152, 0, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.vnc-troubleshooting ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5rem 0;
+}
+
+.vnc-troubleshooting li {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+  position: relative;
+}
+
+.vnc-troubleshooting li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: #ff9800;
+}
+
+.vnc-troubleshooting code {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
 .vnc-placeholder, .terminal-placeholder {
   text-align: center;
   color: var(--text-secondary);

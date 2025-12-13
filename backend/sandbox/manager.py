@@ -21,25 +21,31 @@ class SandboxManager:
         self.sandboxes: Dict[str, ContainerSandbox] = {}
         self._cleanup_task: Optional[asyncio.Task] = None
         
-    async def create_sandbox(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se", use_vnc: bool = True) -> Optional[ContainerSandbox]:
+    async def create_sandbox(self, mission_id: str, level: str, image: str = None, use_vnc: bool = True, distro: str = None) -> Optional[ContainerSandbox]:
         """Создать новую песочницу для миссии"""
+        logger.info(f"Создание песочницы: mission_id={mission_id}, level={level}, image={image}, use_vnc={use_vnc}, distro={distro}")
         # Проверяем, нет ли уже активной песочницы для этой миссии
         existing = self.sandboxes.get(mission_id)
         if existing and existing.status == "running":
-            logger.warning(f"Песочница для миссии {mission_id} уже существует")
-            return existing
+            logger.warning(f"Песочница для миссии {mission_id} уже существует, удаляем старую перед созданием новой")
+            await existing.remove()
         
-        # Удаляем старую, если есть
+        # Удаляем старую, если есть (на случай если статус не running)
         if existing:
             await existing.remove()
+            logger.info(f"Старая песочница для миссии {mission_id} удалена")
         
         # Создаём новую (используем mock в режиме разработки)
         if settings.MOCK_SANDBOX:
             sandbox = MockSandbox(mission_id, level, image, use_vnc)
         else:
-            sandbox = ContainerSandbox(mission_id, level, image, use_vnc)
+            sandbox = ContainerSandbox(mission_id, level, image, use_vnc, distro)
         
-        if await sandbox.create():
+        logger.info(f"[MANAGER] Вызов sandbox.create() для миссии {mission_id}")
+        create_result = await sandbox.create()
+        logger.info(f"[MANAGER] Результат sandbox.create(): {create_result}")
+        
+        if create_result:
             # Для GUI миссий ждём готовности VNC
             if use_vnc and (level == "A" or sandbox.use_vnc):
                 logger.info(f"Ожидание запуска VNC сервера для миссии {mission_id}...")

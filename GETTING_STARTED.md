@@ -227,10 +227,6 @@ curl -X POST http://localhost:8000/api/v1/sandbox/create \
   -H "Content-Type: application/json" \
   -d '{"mission_id": "copy_file", "level": "A", "use_vnc": true}'
 
-# Создание песочницы (CLI)
-curl -X POST http://localhost:8000/api/v1/sandbox/create \
-  -H "Content-Type: application/json" \
-  -d '{"mission_id": "create_archive", "level": "B", "use_vnc": false}'
 
 # Получение VNC URL
 curl http://localhost:8000/api/v1/sandbox/copy_file/vnc

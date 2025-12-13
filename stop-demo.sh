@@ -48,10 +48,10 @@ pkill -f 'npm start' 2>/dev/null || true
 
 # Остановка контейнеров (опционально)
 if [ -n "$CONTAINER_CMD" ]; then
-    read -p "Остановить все контейнеры? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "Остановка контейнеров..."
+read -p "Остановить все контейнеры? (y/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "Остановка контейнеров..."
         $CONTAINER_CMD stop $($CONTAINER_CMD ps -q) 2>/dev/null || echo "  Нет запущенных контейнеров"
     fi
 fi

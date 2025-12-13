@@ -52,9 +52,6 @@ async def get_achievements(username: str = Depends(get_current_user)) -> Dict[st
         "first_mission": "Первая миссия",
         "perfect_score": "Идеальный результат",
         "level_a_master": "Мастер уровня A",
-        "level_b_master": "Мастер уровня B",
-        "level_c_master": "Мастер уровня C",
-        "all_levels": "Универсал",
         "high_score": "Высокий счёт"
     }
     

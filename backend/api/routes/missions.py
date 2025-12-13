@@ -14,7 +14,7 @@ async def list_missions(level: str = None) -> List[Dict[str, Any]]:
     """Получить список всех миссий"""
     missions = []
     
-    levels = ["a", "b", "c"] if not level else [level.lower()]
+    levels = ["a"] if not level else [level.lower()]
     
     for level_dir in levels:
         level_path = settings.MISSIONS_DIR / f"level_{level_dir}"
@@ -44,8 +44,8 @@ async def list_missions(level: str = None) -> List[Dict[str, Any]]:
 @router.get("/missions/{mission_id}")
 async def get_mission(mission_id: str) -> Dict[str, Any]:
     """Получить информацию о конкретной миссии"""
-    # Ищем миссию во всех уровнях
-    for level in ["a", "b", "c"]:
+    # Ищем миссию в уровне A
+    for level in ["a"]:
         mission_path = settings.MISSIONS_DIR / f"level_{level}" / mission_id
         config_file = mission_path / "mission.yaml"
         

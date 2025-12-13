@@ -13,11 +13,12 @@ export const getMission = async (missionId) => {
   return response.data
 }
 
-export const createSandbox = async (missionId, level) => {
+export const createSandbox = async (missionId, level, distro = null) => {
   const response = await axios.post(`${API_BASE}/sandbox/create`, {
     mission_id: missionId,
     level,
-    image: 'astra-linux:latest'
+    distro: distro, // Опционально: debian, ubuntu, astra
+    use_vnc: level === 'A' // VNC для уровня A
   })
   return response.data
 }
@@ -57,5 +58,10 @@ export const getProgress = async () => {
     }
     throw error
   }
+}
+
+export const stopSandbox = async (missionId) => {
+  const response = await axios.post(`${API_BASE}/sandbox/${missionId}/stop`)
+  return response.data
 }
 

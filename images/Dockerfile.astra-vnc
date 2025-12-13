@@ -1,5 +1,10 @@
 # Dockerfile для создания образа Linux с TigerVNC и noVNC
-# Поддерживает Debian-based дистрибутивы (Debian, Ubuntu, Astra Linux)
+# Универсальный для Debian-based дистрибутивов (Debian, Ubuntu, Astra Linux)
+# 
+# Использование:
+#   docker build -f images/Dockerfile.gui-vnc --build-arg BASE_IMAGE=debian:12 -t localhost/linux-gui-vnc:debian .
+#   docker build -f images/Dockerfile.gui-vnc --build-arg BASE_IMAGE=ubuntu:22.04 -t localhost/linux-gui-vnc:ubuntu .
+#   docker build -f images/Dockerfile.gui-vnc --build-arg BASE_IMAGE=astra-linux:se -t localhost/linux-gui-vnc:astra .
 
 ARG BASE_IMAGE=debian:12
 FROM ${BASE_IMAGE}
@@ -50,10 +55,20 @@ RUN apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 # Попытка установить XFCE (если доступен)
+# Устанавливаем полный набор XFCE компонентов для нормальной работы
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         xfce4 \
-        xfce4-terminal || \
+        xfce4-goodies \
+        xfce4-terminal \
+        xfce4-panel \
+        xfce4-session \
+        xfwm4 \
+        xfdesktop4 \
+        xfce4-settings \
+        thunar \
+        desktop-base \
+        xfce4-notifyd || \
     echo "XFCE недоступен, используем базовый X11" && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -70,22 +85,21 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Установка Python3 и зависимостей для noVNC
+# Установка Python3 и git для noVNC
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3 \
-        python3-pip \
-        python3-numpy \
+        python3-minimal \
         git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# noVNC + websockify (из git, без pip)
+# Установка noVNC + websockify (из git, без pip)
+# noVNC официально поддерживает такой способ, pip не нужен
 RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC && \
     git clone --depth 1 https://github.com/novnc/websockify.git /opt/noVNC/utils/websockify && \
     ln -s /opt/noVNC/vnc.html /opt/noVNC/index.html && \
     chmod +x /opt/noVNC/utils/novnc_proxy
-
 
 # Создание пользователя для VNC
 RUN useradd -m -s /bin/bash -G sudo sandboxuser && \
@@ -105,15 +119,93 @@ RUN mkdir -p /home/sandboxuser/.vnc && \
      touch /home/sandboxuser/.vnc/passwd) && \
     chmod 600 /home/sandboxuser/.vnc/passwd
 
-# Создание конфигурации VNC
-RUN echo '#!/bin/bash' > /home/sandboxuser/.vnc/xstartup && \
-    echo 'unset SESSION_MANAGER' >> /home/sandboxuser/.vnc/xstartup && \
-    echo 'unset DBUS_SESSION_BUS_ADDRESS' >> /home/sandboxuser/.vnc/xstartup && \
-    echo 'export XKL_XMODMAP_DISABLE=1' >> /home/sandboxuser/.vnc/xstartup && \
-    echo 'export XDG_CURRENT_DESKTOP=XFCE' >> /home/sandboxuser/.vnc/xstartup && \
-    echo 'export XDG_SESSION_TYPE=x11' >> /home/sandboxuser/.vnc/xstartup && \
-    echo 'dbus-launch --exit-with-session startxfce4 &' >> /home/sandboxuser/.vnc/xstartup && \
-    chmod +x /home/sandboxuser/.vnc/xstartup
+# Создание конфигурации VNC xstartup скрипта
+# Более надежный способ запуска XFCE в VNC
+RUN cat > /home/sandboxuser/.vnc/xstartup << 'EOFSTARTUP'
+#!/bin/bash
+# XFCE Desktop Environment startup script for VNC
+
+# Очистка переменных окружения сессии
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+
+# Настройка переменных окружения
+export XKL_XMODMAP_DISABLE=1
+export XDG_CURRENT_DESKTOP=XFCE
+export XDG_SESSION_TYPE=x11
+export XDG_MENU_PREFIX=xfce-
+export XDG_CONFIG_DIRS=/etc/xdg/xfce4:/etc/xdg
+export XDG_DATA_DIRS=/usr/share/xfce4:/usr/share/xfce:/usr/local/share:/usr/share
+
+# Загрузка X ресурсов
+[ -r $HOME/.Xresources ] && xrdb $HOME/.Xresources 2>/dev/null
+
+# Запуск dbus если доступен (важно для XFCE)
+if command -v dbus-launch >/dev/null 2>&1; then
+    eval $(dbus-launch --sh-syntax --exit-with-session 2>/dev/null)
+    export DBUS_SESSION_BUS_ADDRESS
+fi
+
+# Запуск XFCE Desktop Environment
+# Важно: запускаем процессы в фоне, но скрипт должен оставаться активным
+# VNC будет держать сессию пока работает X сервер
+
+# Запуск XFCE сессии в фоне
+if command -v startxfce4 >/dev/null 2>&1; then
+    echo "Запуск XFCE Desktop Environment..."
+    startxfce4 &
+    XFCE_PID=$!
+elif command -v xfce4-session >/dev/null 2>&1; then
+    echo "Запуск XFCE Session..."
+    xfce4-session &
+    XFCE_PID=$!
+else
+    # Fallback: запускаем компоненты XFCE по отдельности
+    echo "Запуск компонентов XFCE по отдельности..."
+    
+    # Запуск оконного менеджера
+    if command -v xfwm4 >/dev/null 2>&1; then
+        xfwm4 --replace &
+    fi
+    
+    # Запуск панели
+    if command -v xfce4-panel >/dev/null 2>&1; then
+        xfce4-panel &
+    fi
+    
+    # Запуск рабочего стола
+    if command -v xfdesktop >/dev/null 2>&1; then
+        xfdesktop &
+    elif command -v xfdesktop4 >/dev/null 2>&1; then
+        xfdesktop4 &
+    fi
+    
+    # Запуск менеджера настроек (опционально)
+    # xfce4-settings &
+    
+    XFCE_PID=0
+fi
+
+# Если ничего не найдено, запускаем хотя бы терминал
+if [ "$XFCE_PID" = "0" ] || ! ps -p "$XFCE_PID" >/dev/null 2>&1; then
+    echo "XFCE не найден, запускаем базовый терминал..."
+    if command -v xterm >/dev/null 2>&1; then
+        xterm -geometry 80x24+10+10 -ls -title "Desktop" &
+    elif command -v x-terminal-emulator >/dev/null 2>&1; then
+        x-terminal-emulator &
+    fi
+fi
+
+# Держим скрипт активным, отслеживая XFCE процесс
+# Это важно для VNC - если скрипт завершится сразу, сессия может не запуститься
+if [ "$XFCE_PID" != "0" ] && ps -p "$XFCE_PID" >/dev/null 2>&1; then
+    wait $XFCE_PID
+else
+    # Если процесс не найден, просто ждем (процессы запущены в фоне)
+    wait
+fi
+EOFSTARTUP
+RUN chmod +x /home/sandboxuser/.vnc/xstartup
 
 # Создание конфигурации XFCE (отключение заставки и энергосбережения)
 RUN mkdir -p /home/sandboxuser/.config/xfce4/xfconf/xfce-perchannel-xml && \
@@ -133,7 +225,11 @@ RUN chmod +x /usr/local/bin/start-vnc.sh
 
 # Создание конфигурации supervisor
 RUN mkdir -p /var/log/supervisor && \
-    mkdir -p /etc/supervisor/conf.d
+    mkdir -p /etc/supervisor/conf.d && \
+    # Удаляем все старые конфигурации supervisor (если есть)
+    rm -f /etc/supervisor/conf.d/*.conf && \
+    # Удаляем системную конфигурацию supervisor (если есть)
+    rm -f /etc/supervisor/supervisord.conf 2>/dev/null || true
 
 COPY images/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
@@ -148,6 +244,19 @@ RUN mkdir -p /mission && \
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:6080/ || exit 1
 
+# Создание главного файла конфигурации supervisor (если его нет)
+RUN if [ ! -f /etc/supervisor/supervisord.conf ]; then \
+        echo '[supervisord]' > /etc/supervisor/supervisord.conf && \
+        echo 'nodaemon=true' >> /etc/supervisor/supervisord.conf && \
+        echo 'user=root' >> /etc/supervisor/supervisord.conf && \
+        echo 'logfile=/var/log/supervisor/supervisord.log' >> /etc/supervisor/supervisord.conf && \
+        echo 'pidfile=/var/run/supervisord.pid' >> /etc/supervisor/supervisord.conf && \
+        echo 'childlogdir=/var/log/supervisor' >> /etc/supervisor/supervisord.conf && \
+        echo '' >> /etc/supervisor/supervisord.conf && \
+        echo '[include]' >> /etc/supervisor/supervisord.conf && \
+        echo 'files = /etc/supervisor/conf.d/*.conf' >> /etc/supervisor/supervisord.conf; \
+    fi
+
 # Точка входа
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]
 

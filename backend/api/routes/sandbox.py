@@ -1,6 +1,6 @@
 """Роуты для работы с песочницами"""
 from fastapi import APIRouter, HTTPException
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pydantic import BaseModel
 
 from backend.sandbox.manager import sandbox_manager
@@ -11,18 +11,26 @@ router = APIRouter()
 class CreateSandboxRequest(BaseModel):
     mission_id: str
     level: str
-    image: str = "localhost/astra-linux:se"  # Используем localhost/ для локальных образов
+    image: Optional[str] = None  # Опционально: если не указан, выбирается автоматически по distro
     use_vnc: bool = True  # Включить VNC по умолчанию
+    distro: Optional[str] = None  # Дистрибутив: debian, ubuntu, astra (по умолчанию из config)
 
 
 @router.post("/sandbox/create")
 async def create_sandbox(request: CreateSandboxRequest) -> Dict[str, Any]:
     """Создать песочницу для миссии"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Создание песочницы: mission_id={request.mission_id}, level={request.level}, "
+                f"image={request.image}, use_vnc={request.use_vnc}, distro={request.distro}")
+    
     sandbox = await sandbox_manager.create_sandbox(
         request.mission_id,
         request.level,
         request.image,
-        request.use_vnc
+        request.use_vnc,
+        request.distro
     )
     
     if not sandbox:
@@ -132,5 +140,17 @@ async def exec_command(mission_id: str, command: str) -> Dict[str, Any]:
         "output": output,
         "exit_code": code,
         "command": command
+    }
+
+
+@router.get("/sandbox/copy_file")
+async def copy_file_get() -> Dict[str, Any]:
+    """
+    Эндпоинт для копирования файлов (legacy/stub)
+    Файлы копируются автоматически при монтировании /mission в контейнер
+    """
+    return {
+        "message": "Файлы автоматически доступны в контейнере через /mission",
+        "note": "Используйте монтирование тома при создании песочницы"
     }
 

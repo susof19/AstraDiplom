@@ -2,9 +2,12 @@
 import asyncio
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from enum import Enum
+
+import yaml
 
 from backend.sandbox.container import ContainerSandbox
 from backend.config import settings
@@ -35,7 +38,6 @@ class MissionChecker:
             return None
         
         try:
-            import yaml
             with open(config_file, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f)
         except Exception as e:
@@ -46,6 +48,7 @@ class MissionChecker:
         """Проверить выполнение миссии"""
         config = await self.load_mission_config()
         if not config:
+            logger.error(f"Конфигурация миссии {self.mission_id} не загружена")
             return {
                 "result": CheckResult.FAILED.value,
                 "score": 0,
@@ -53,24 +56,85 @@ class MissionChecker:
                 "checks": []
             }
         
+        # ВАЖНО: setup уже выполнен при создании контейнера
+        # Здесь мы только проверяем результат работы пользователя
+        
+        # Определяем домашнюю директорию пользователя для замены путей
+        container_user = sandbox.container_user or "sandboxuser"
+        try:
+            if container_user == "root":
+                user_home = "/root"
+            else:
+                home_output, home_code = await sandbox.exec_command(f"echo ~{container_user}", user=container_user)
+                user_home = home_output.strip() if home_code == 0 else f"/home/{container_user}"
+        except Exception:
+            user_home = "/root" if container_user == "root" else f"/home/{container_user}"
+        
+        def replace_user_path(path: str) -> str:
+            """Заменяет /root, /home/sandboxuser, /home/user на реальный путь пользователя"""
+            # Если путь начинается с /root, заменяем на user_home
+            # Если путь начинается с /home/user или /home/sandboxuser, заменяем на user_home
+            if path.startswith("/root/"):
+                return path.replace("/root", user_home, 1)  # Заменяем только первое вхождение
+            elif path.startswith("/home/user/"):
+                return path.replace("/home/user", user_home, 1)
+            elif path.startswith("/home/sandboxuser/"):
+                return path.replace("/home/sandboxuser", user_home, 1)
+            return path
+        
         checks = config.get("checks", [])
+        # Заменяем пути в checks на реальные пути пользователя
+        for check in checks:
+            if "path" in check:
+                check["path"] = replace_user_path(check["path"])
+        if not checks:
+            logger.warning(f"Миссия {self.mission_id} не содержит проверок")
+            return {
+                "result": CheckResult.FAILED.value,
+                "score": 0,
+                "message": "Миссия не содержит проверок",
+                "checks": []
+            }
+        
+        logger.info(f"Начало проверки миссии {self.mission_id}, проверок: {len(checks)}")
         results = []
         passed = 0
-        total = len(checks)
+        total_points = 0
+        earned_points = 0
         
         for check in checks:
+            check_name = check.get("name", "unknown")
+            check_points = check.get("points", 0)
+            total_points += check_points
+            logger.info(f"Выполнение проверки '{check_name}': {check.get('type', 'unknown')}")
+            
             check_result = await self._run_check(check, sandbox)
-            results.append(check_result)
-            if check_result["passed"]:
+            check_result["points"] = check_points
+            if check_result.get("passed", False):
                 passed += 1
+                earned_points += check_points
+                check_result["earned_points"] = check_points
+                logger.info(f"✓ Проверка пройдена: {check_name} (+{check_points} баллов)")
+            else:
+                check_result["earned_points"] = 0
+                logger.info(f"✗ Проверка не пройдена: {check_name} - {check_result.get('message', '')} (0/{check_points} баллов)")
+            
+            results.append(check_result)
         
-        score = int((passed / total) * 100) if total > 0 else 0
-        result = CheckResult.PASSED if passed == total else (CheckResult.PARTIAL if passed > 0 else CheckResult.FAILED)
+        # Подсчитываем финальный score на основе баллов
+        score = int((earned_points / total_points) * 100) if total_points > 0 else 0
+        result = CheckResult.PASSED if passed == len(checks) else (CheckResult.PARTIAL if passed > 0 else CheckResult.FAILED)
+        
+        logger.info(f"Проверка миссии {self.mission_id} завершена: {passed}/{len(checks)} проверок пройдено, {earned_points}/{total_points} баллов, оценка: {score}%")
         
         return {
             "result": result.value,
             "score": score,
-            "message": f"Выполнено {passed} из {total} проверок",
+            "points": {
+                "earned": earned_points,
+                "total": total_points
+            },
+            "message": f"Выполнено {passed} из {len(checks)} проверок ({earned_points}/{total_points} баллов)",
             "checks": results
         }
     
@@ -78,78 +142,225 @@ class MissionChecker:
         """Выполнить одну проверку"""
         check_type = check.get("type")
         
-        if check_type == "file_exists":
-            return await self._check_file_exists(check, sandbox)
-        elif check_type == "file_content":
-            return await self._check_file_content(check, sandbox)
-        elif check_type == "command_output":
-            return await self._check_command_output(check, sandbox)
-        elif check_type == "gui_state":
-            return await self._check_gui_state(check, sandbox)
-        else:
+        try:
+            if check_type == "file_exists":
+                return await self._check_file_exists(check, sandbox)
+            elif check_type == "file_content":
+                return await self._check_file_content(check, sandbox)
+            elif check_type == "command_output":
+                return await self._check_command_output(check, sandbox)
+            elif check_type == "gui_state":
+                return await self._check_gui_state(check, sandbox)
+            else:
+                logger.warning(f"Неизвестный тип проверки: {check_type}")
+                return {
+                    "name": check.get("name", "unknown"),
+                    "type": check_type or "unknown",
+                    "passed": False,
+                    "message": f"Неизвестный тип проверки: {check_type}"
+                }
+        except Exception as e:
+            logger.error(f"Ошибка выполнения проверки {check.get('name', 'unknown')}: {e}", exc_info=True)
             return {
                 "name": check.get("name", "unknown"),
+                "type": check_type or "unknown",
                 "passed": False,
-                "message": f"Неизвестный тип проверки: {check_type}"
+                "message": f"Ошибка выполнения проверки: {e}"
             }
     
     async def _check_file_exists(self, check: Dict[str, Any], sandbox: ContainerSandbox) -> Dict[str, Any]:
-        """Проверить существование файла"""
+        """Проверить существование файла или директории"""
         path = check.get("path")
+        check_type = check.get("file_type", "file")  # file, directory, или both
+        
         if not path:
             return {"name": check.get("name"), "passed": False, "message": "Путь не указан"}
         
-        output, code = await sandbox.exec_command(f"test -f '{path}' && echo 'exists' || echo 'not_found'")
-        exists = "exists" in output
+        try:
+            if check_type == "directory":
+                # Проверяем только директорию
+                output, code = await sandbox.exec_command(f"test -d '{path}' && echo 'exists' || echo 'not_found'")
+                exists = "exists" in output
+                item_type = "Директория"
+            elif check_type == "file":
+                # Проверяем только файл
+                output, code = await sandbox.exec_command(f"test -f '{path}' && echo 'exists' || echo 'not_found'")
+                exists = "exists" in output
+                item_type = "Файл"
+            else:  # both или не указан
+                # Проверяем что существует (файл или директория)
+                output, code = await sandbox.exec_command(f"test -e '{path}' && echo 'exists' || echo 'not_found'")
+                exists = "exists" in output
+                item_type = "Файл или директория"
+            
+            logger.debug(f"Проверка {item_type} {path}: exists={exists}, output='{output.strip()}', code={code}")
+        except Exception as e:
+            logger.error(f"Ошибка проверки файла/директории {path}: {e}")
+            exists = False
+            item_type = "Файл или директория"
         
         return {
-            "name": check.get("name", f"File exists: {path}"),
+            "name": check.get("name", f"{item_type} exists: {path}"),
+            "type": "file_exists",
             "passed": exists,
-            "message": f"Файл {'найден' if exists else 'не найден'}: {path}"
+            "message": f"{item_type} {'найден' if exists else 'не найден'}: {path}"
         }
     
     async def _check_file_content(self, check: Dict[str, Any], sandbox: ContainerSandbox) -> Dict[str, Any]:
         """Проверить содержимое файла"""
         path = check.get("path")
         expected = check.get("expected")
-        if not path or expected is None:
-            return {"name": check.get("name"), "passed": False, "message": "Параметры не указаны"}
+        operator = check.get("operator", "contains")  # contains, equals, regex
         
-        output, code = await sandbox.exec_command(f"cat '{path}' 2>/dev/null || echo ''")
-        content = output.strip()
-        matches = expected in content if isinstance(expected, str) else expected == content
+        if not path:
+            return {"name": check.get("name"), "passed": False, "message": "Путь не указан"}
         
-        return {
-            "name": check.get("name", f"File content: {path}"),
-            "passed": matches,
-            "message": f"Содержимое {'совпадает' if matches else 'не совпадает'}"
-        }
+        if expected is None:
+            return {"name": check.get("name"), "passed": False, "message": "Ожидаемое содержимое не указано"}
+        
+        try:
+            output, code = await sandbox.exec_command(f"cat '{path}' 2>/dev/null || echo ''")
+            content = output.strip()
+            
+            if operator == "contains":
+                matches = str(expected) in content
+            elif operator == "equals":
+                matches = content == str(expected)
+            elif operator == "regex":
+                matches = bool(re.search(str(expected), content))
+            else:
+                matches = str(expected) in content
+            
+            logger.debug(f"Проверка содержимого файла {path}: operator={operator}, expected={expected}, matches={matches}")
+            
+            return {
+                "name": check.get("name", f"File content: {path}"),
+                "type": "file_content",
+                "passed": matches,
+                "message": f"Содержимое файла {'соответствует' if matches else 'не соответствует'} ожиданию (оператор: {operator})"
+            }
+        except Exception as e:
+            logger.error(f"Ошибка проверки содержимого файла {path}: {e}")
+            return {
+                "name": check.get("name", f"File content: {path}"),
+                "type": "file_content",
+                "passed": False,
+                "message": f"Ошибка чтения файла: {e}"
+            }
     
     async def _check_command_output(self, check: Dict[str, Any], sandbox: ContainerSandbox) -> Dict[str, Any]:
-        """Проверить вывод команды"""
+        """Проверить вывод команды с различными операторами сравнения"""
         command = check.get("command")
         expected = check.get("expected")
-        if not command or expected is None:
-            return {"name": check.get("name"), "passed": False, "message": "Параметры не указаны"}
+        operator = check.get("operator", "contains")  # contains, equals, greater_than, less_than, regex
+        exit_code_required = check.get("exit_code", None)  # Проверка кода возврата
         
-        output, code = await sandbox.exec_command(command)
-        output = output.strip()
-        matches = expected in output if isinstance(expected, str) else str(expected) in output
+        if not command:
+            return {"name": check.get("name"), "passed": False, "message": "Команда не указана"}
         
-        return {
-            "name": check.get("name", f"Command: {command}"),
-            "passed": matches,
-            "message": f"Вывод команды {'совпадает' if matches else 'не совпадает'}"
-        }
+        try:
+            output, code = await sandbox.exec_command(command)
+            output = output.strip()
+            
+            # Проверяем код возврата если требуется
+            if exit_code_required is not None:
+                if code != exit_code_required:
+                    return {
+                        "name": check.get("name", f"Command: {command}"),
+                        "type": "command_output",
+                        "passed": False,
+                        "message": f"Код возврата не совпадает: получено {code}, ожидалось {exit_code_required}"
+                    }
+            
+            # Если expected не указан, проверяем только код возврата
+            if expected is None:
+                matches = (code == 0) if exit_code_required is None else (code == exit_code_required)
+                return {
+                    "name": check.get("name", f"Command: {command}"),
+                    "type": "command_output",
+                    "passed": matches,
+                    "message": f"Команда {'выполнена успешно' if matches else f'завершилась с кодом {code}'}"
+                }
+            
+            # Сравниваем вывод в зависимости от оператора
+            if operator == "contains":
+                matches = str(expected) in output
+            elif operator == "equals":
+                matches = output == str(expected)
+            elif operator == "greater_than":
+                try:
+                    output_num = float(output)
+                    expected_num = float(expected)
+                    matches = output_num > expected_num
+                except ValueError:
+                    matches = False
+            elif operator == "less_than":
+                try:
+                    output_num = float(output)
+                    expected_num = float(expected)
+                    matches = output_num < expected_num
+                except ValueError:
+                    matches = False
+            elif operator == "regex":
+                matches = bool(re.search(str(expected), output))
+            else:
+                matches = str(expected) in output
+            
+            logger.debug(f"Проверка команды: {command}, оператор={operator}, expected={expected}, output='{output}', matches={matches}")
+            
+            return {
+                "name": check.get("name", f"Command: {command}"),
+                "type": "command_output",
+                "passed": matches,
+                "message": f"Вывод команды {'соответствует' if matches else 'не соответствует'} ожиданию (оператор: {operator})"
+            }
+        except Exception as e:
+            logger.error(f"Ошибка выполнения команды {command}: {e}")
+            return {
+                "name": check.get("name", f"Command: {command}"),
+                "type": "command_output",
+                "passed": False,
+                "message": f"Ошибка выполнения команды: {e}"
+            }
     
     async def _check_gui_state(self, check: Dict[str, Any], sandbox: ContainerSandbox) -> Dict[str, Any]:
         """Проверить состояние GUI (для уровня A)"""
-        # TODO: Реализовать проверку через скриншоты или состояние окон
+        # Проверяем доступность VNC
+        if not sandbox.use_vnc or not sandbox.novnc_port:
+            return {
+                "name": check.get("name", "GUI state"),
+                "type": "gui_state",
+                "passed": False,
+                "message": "VNC не доступен для проверки GUI"
+            }
+        
+        # TODO: Реализовать проверку через скриншоты VNC
+        # Для этого можно использовать:
+        # 1. vncsnapshot или vncdotool для получения скриншота
+        # 2. OCR (tesseract) для распознавания текста
+        # 3. Image comparison для поиска элементов интерфейса
+        # 
         # Пока возвращаем заглушку
+        window_name = check.get("window", None)
+        if window_name:
+            # Проверяем наличие окна через команду (fallback метод)
+            try:
+                output, code = await sandbox.exec_command(f"pgrep -f '{window_name}' || echo 'not_found'")
+                window_exists = "not_found" not in output
+                return {
+                    "name": check.get("name", f"GUI window: {window_name}"),
+                    "type": "gui_state",
+                    "passed": window_exists,
+                    "message": f"Окно {window_name} {'найдено' if window_exists else 'не найдено'}"
+                }
+            except Exception as e:
+                logger.error(f"Ошибка проверки GUI состояния: {e}")
+        
         return {
             "name": check.get("name", "GUI state"),
+            "type": "gui_state",
             "passed": False,
-            "message": "Проверка GUI ещё не реализована"
+            "message": "Проверка GUI через скриншоты ещё не реализована (можно проверить процессы)"
         }
 
 
@@ -161,4 +372,3 @@ class Grader:
         """Проверить выполнение миссии"""
         checker = MissionChecker(mission_id, level)
         return await checker.check(sandbox)
-

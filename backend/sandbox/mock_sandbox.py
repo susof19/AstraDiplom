@@ -12,8 +12,8 @@ logger = __import__("logging").getLogger(__name__)
 class MockSandbox(ContainerSandbox):
     """Mock-реализация песочницы для тестирования без Podman"""
     
-    def __init__(self, mission_id: str, level: str, image: str = "localhost/astra-linux:se", use_vnc: bool = True):
-        super().__init__(mission_id, level, image, use_vnc)
+    def __init__(self, mission_id: str, level: str, image: str = None, use_vnc: bool = True, distro: str = None):
+        super().__init__(mission_id, level, image, use_vnc, distro)
         self.container_id = f"mock-{mission_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
         # Mock VNC порты
@@ -141,7 +141,9 @@ class MockSandbox(ContainerSandbox):
         """Получить URL для подключения к noVNC (mock)"""
         if not self.novnc_port:
             return None
-        return f"http://localhost:{self.novnc_port}/vnc.html"
+        from backend.config import settings
+        password = settings.VNC_PASSWORD
+        return f"http://localhost:{self.novnc_port}/vnc.html?password={password}&autoconnect=true&resize=scale"
     
     async def wait_for_vnc(self, timeout: int = 60) -> bool:
         """Ожидание готовности VNC сервера (mock - всегда готов)"""

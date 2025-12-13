@@ -38,7 +38,7 @@ http://localhost:3000
 - Объяснить изоляцию
 
 ### 4. Grader (3 мин)
-- Показать конфигурацию: `cat missions/level_b/create_archive/mission.yaml`
+- Показать конфигурацию: `cat missions/level_a/copy_file/mission.yaml`
 - Объяснить автоматическую проверку
 - Показать типы проверок
 
@@ -89,10 +89,10 @@ curl http://localhost:8000/api/v1/missions
 # Создать песочницу
 curl -X POST http://localhost:8000/api/v1/sandbox/create \
   -H "Content-Type: application/json" \
-  -d '{"mission_id":"create_archive","level":"B"}'
+  -d '{"mission_id":"copy_file","level":"A"}'
 
 # Проверить миссию
-curl -X POST "http://localhost:8000/api/v1/grader/check/create_archive?level=B"
+curl -X POST "http://localhost:8000/api/v1/grader/check/copy_file?level=A"
 ```
 
 ### Показать код
@@ -104,7 +104,7 @@ cat backend/grader/checker.py
 cat backend/api/routes/grader.py
 
 # Миссия
-cat missions/level_b/create_archive/mission.yaml
+cat missions/level_a/copy_file/mission.yaml
 ```
 
 ## 📊 Статистика проекта

@@ -1,0 +1,43 @@
+FROM astra-fly:v1.7.6 as astra
+
+EXPOSE 5900 80
+ARG user=user
+ARG password=123321
+
+ENV DEBIAN_FRONTEND="noninteractive" \
+    XDG_RUNTIME_DIR=/tmp/runtime-root \
+    DISPLAY=:1.0 \
+    LANG=ru_RU.UTF-8 \
+    LANGUAGE=ru_RU:ru \
+    LC_ALL=ru_RU.UTF-8 
+
+# Установка зависимостей и локалей
+RUN apt-get update && apt-get install -y \
+    xvfb x11vnc sudo dirmngr locales xserver-xorg-video-dummy git python3-venv python3 \
+    x11-xserver-utils \
+    && sed -i 's/# ru_RU.UTF-8 UTF-8/ru_RU.UTF-8 UTF-8/' /etc/locale.gen || true \
+    && sed -i 's/# ru_RU.UTF-8/ru_RU.UTF-8/' /etc/locale.gen || true \
+    && locale-gen ru_RU.UTF-8 || true \
+    && update-locale LANG=ru_RU.UTF-8 || true \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Установка noVNC и websockify
+RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC && \
+    git clone --depth 1 https://github.com/novnc/websockify.git /opt/noVNC/utils/websockify && \
+    ln -s /opt/noVNC/vnc.html /opt/noVNC/index.html && \
+    chmod +x /opt/noVNC/utils/websockify/run || true 
+
+# Копирование конфигурационных файлов
+ADD ./xorg.conf /etc/X11/xorg.conf
+
+RUN echo 'root:$password' | chpasswd \
+    && adduser --disabled-password --gecos "" $user \
+    && usermod -aG sudo $user 
+
+
+ADD .scripts/entrypoint.sh /opt/entrypoint.sh
+COPY . /home/user/tests
+
+RUN sudo chmod -R 777 /home/user/tests && sudo chmod +x /opt/entrypoint.sh
+CMD su $user --command /opt/entrypoint.sh

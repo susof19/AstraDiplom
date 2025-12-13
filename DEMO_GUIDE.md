@@ -251,7 +251,7 @@ watch -n 2 'podman ps'
 
 2. **Показать конфигурацию миссии**:
    ```bash
-   cat missions/level_b/create_archive/mission.yaml
+   cat missions/level_a/copy_file/mission.yaml
    ```
 
 3. **Объяснить расширяемость**:
@@ -269,16 +269,16 @@ watch -n 2 'podman ps'
 curl -X POST http://localhost:8000/api/v1/sandbox/create \
   -H "Content-Type: application/json" \
   -d '{
-    "mission_id": "create_archive",
-    "level": "B",
-    "use_vnc": false
+    "mission_id": "copy_file",
+    "level": "A",
+    "use_vnc": true
   }'
 ```
 
 ### Проверка миссии
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/grader/check/create_archive?level=B" \
+curl -X POST "http://localhost:8000/api/v1/grader/check/copy_file?level=A" \
   -H "Content-Type: application/json"
 ```
 

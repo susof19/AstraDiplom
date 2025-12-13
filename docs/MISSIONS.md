@@ -4,7 +4,7 @@
 
 Каждая миссия находится в директории:
 ```
-missions/level_{a|b|c}/{mission_id}/
+missions/level_a/{mission_id}/
 ├── mission.yaml      # Конфигурация миссии
 └── assets/           # Дополнительные файлы (опционально)
 ```
@@ -16,7 +16,7 @@ missions/level_{a|b|c}/{mission_id}/
 ```yaml
 name: "Название миссии"           # Обязательно
 description: "Описание задания"   # Обязательно
-level: "A"                        # A, B или C
+level: "A"                        # Уровень A (GUI-миссии)
 difficulty: 1                     # 1-5
 estimated_time: 10                # Минуты
 ```
@@ -126,32 +126,6 @@ checks:
     type: "file_exists"
     path: "/home/user/Документы/photo.jpg"
     points: 100
-```
-
-### Уровень B: Создание архива
-
-```yaml
-name: "Создание архива логов"
-description: "Создайте архив всех логов из /var/log"
-level: "B"
-difficulty: 2
-estimated_time: 10
-
-objectives:
-  - "Найти все файлы логов"
-  - "Создать архив"
-  - "Проверить целостность"
-
-checks:
-  - name: "Архив создан"
-    type: "file_exists"
-    path: "/home/user/logs_backup.tar.gz"
-    points: 50
-  - name: "Архив содержит файлы"
-    type: "command_output"
-    command: "tar -tzf /home/user/logs_backup.tar.gz | wc -l"
-    expected: "0"
-    points: 50
 ```
 
 ## Рекомендации

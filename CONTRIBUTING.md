@@ -4,7 +4,7 @@
 
 1. Создайте директорию для миссии:
    ```bash
-   mkdir -p missions/level_{a|b|c}/{mission_id}
+   mkdir -p missions/level_a/{mission_id}
    ```
 
 2. Создайте файл `mission.yaml` (см. `docs/MISSIONS.md`)
