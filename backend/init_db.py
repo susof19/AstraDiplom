@@ -9,6 +9,7 @@ project_root = backend_dir.parent
 sys.path.insert(0, str(project_root))
 
 from backend.database import init_db, engine, Base
+from backend.models.user_db import User  # Импортируем для регистрации модели в Base
 from backend.config import settings
 import logging
 

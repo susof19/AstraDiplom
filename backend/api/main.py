@@ -7,6 +7,8 @@ import logging
 from backend.config import settings
 from backend.api.routes import missions, sandbox, grader, progress, auth
 from backend.sandbox.manager import sandbox_manager
+# Импортируем модели для регистрации в Base
+from backend.models.user_db import User  # noqa: F401
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,6 +40,31 @@ app.include_router(progress.router, prefix=settings.API_PREFIX, tags=["progress"
 async def startup_event():
     """Инициализация при запуске"""
     logger.info("Запуск Linux Training Simulator API")
+    
+    # Проверка и инициализация базы данных
+    try:
+        from backend.database import engine, Base
+        from backend.models.user_db import User  # Импортируем для регистрации модели
+        logger.info("🔍 Проверка соединения с базой данных...")
+        
+        # Проверяем соединение
+        with engine.connect() as conn:
+            logger.info("✅ Соединение с базой данных установлено")
+        
+        # Создаем таблицы, если их нет
+        logger.info("📦 Проверка таблиц базы данных...")
+        Base.metadata.create_all(bind=engine)
+        logger.info("✅ Таблицы базы данных готовы")
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка работы с базой данных: {e}")
+        logger.error("💡 Убедитесь, что:")
+        logger.error("   1. PostgreSQL установлен и запущен")
+        logger.error("   2. База данных создана: trainer_db")
+        logger.error("   3. Пользователь создан: trainer_user")
+        logger.error("   4. DATABASE_URL в config.py правильный")
+        logger.error("💡 Выполните: python backend/init_db.py")
+        logger.warning("⚠️  Приложение продолжит работу, но функции аутентификации могут не работать")
     
     # Проверка совместимости системы (Podman/Docker)
     try:
