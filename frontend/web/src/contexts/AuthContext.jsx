@@ -12,11 +12,21 @@ export const useAuth = () => {
 }
 
 export const AuthProvider = ({ children }) => {
+  // Загружаем токен из localStorage при инициализации
+  const initialToken = localStorage.getItem('token')
+  
+  // Устанавливаем токен в axios синхронно при инициализации
+  if (initialToken) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${initialToken}`
+  } else {
+    delete axios.defaults.headers.common['Authorization']
+  }
+  
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [token, setToken] = useState(localStorage.getItem('token'))
+  const [token, setToken] = useState(initialToken)
 
-  // Настройка axios interceptor для добавления токена
+  // Настройка axios interceptor для добавления токена при изменении
   useEffect(() => {
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`

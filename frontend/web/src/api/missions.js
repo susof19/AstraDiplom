@@ -46,6 +46,12 @@ export const getProgress = async () => {
     const response = await axios.get(`${API_BASE}/progress`)
     return response.data
   } catch (error) {
+    // 403 или 401 означает проблему с аутентификацией
+    if (error.response?.status === 403 || error.response?.status === 401) {
+      console.warn('Ошибка аутентификации при получении прогресса:', error.response?.data)
+      // Возвращаем null, чтобы не ломать UI
+      return null
+    }
     if (error.response?.status === 404) {
       return null
     }

@@ -62,10 +62,11 @@ RUN apt-get update && \
 RUN apt-get update && \
     (apt-get install -y --no-install-recommends \
         tigervnc-standalone-server \
-        tigervnc-common || \
-     apt-get install -y --no-install-recommends \
-        tightvncserver || \
-     echo "VNC сервер недоступен в репозиториях") && \
+        tigervnc-common || true) && \
+    (apt-get install -y --no-install-recommends \
+        tightvncserver || true) && \
+    (apt-get install -y --no-install-recommends \
+        x11vnc || true) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -79,14 +80,12 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Установка websockify для noVNC
-RUN pip3 install --no-cache-dir websockify
-
-# Установка noVNC
+# noVNC + websockify (из git, без pip)
 RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC && \
-    git clone --depth 1 https://github.com/novnc/websockify /opt/noVNC/utils/websockify && \
+    git clone --depth 1 https://github.com/novnc/websockify.git /opt/noVNC/utils/websockify && \
     ln -s /opt/noVNC/vnc.html /opt/noVNC/index.html && \
     chmod +x /opt/noVNC/utils/novnc_proxy
+
 
 # Создание пользователя для VNC
 RUN useradd -m -s /bin/bash -G sudo sandboxuser && \
@@ -97,7 +96,13 @@ RUN useradd -m -s /bin/bash -G sudo sandboxuser && \
 
 # Настройка VNC пароля
 USER sandboxuser
-RUN echo "sandbox123" | vncpasswd -f > /home/sandboxuser/.vnc/passwd && \
+# Создаем VNC пароль используя x11vnc (самый надежный способ)
+RUN mkdir -p /home/sandboxuser/.vnc && \
+    (x11vnc -storepasswd sandbox123 /home/sandboxuser/.vnc/passwd 2>/dev/null || \
+     echo "sandbox123" | vncpasswd -f > /home/sandboxuser/.vnc/passwd 2>/dev/null || \
+     echo "sandbox123" | tightvncpasswd -f > /home/sandboxuser/.vnc/passwd 2>/dev/null || \
+     # Если ничего не работает, создаем пустой файл (VNC сервер может работать без пароля или установить позже)
+     touch /home/sandboxuser/.vnc/passwd) && \
     chmod 600 /home/sandboxuser/.vnc/passwd
 
 # Создание конфигурации VNC

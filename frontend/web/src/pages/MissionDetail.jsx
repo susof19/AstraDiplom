@@ -94,7 +94,11 @@ function MissionDetail() {
       </div>
 
       <div className="sandbox-container">
-        <SandboxViewer missionId={missionId} level={mission.level} />
+        <SandboxViewer 
+          missionId={missionId} 
+          level={mission.level} 
+          isCreating={createSandboxMutation.isLoading}
+        />
       </div>
     </div>
   )

@@ -27,6 +27,39 @@ else
     exit 1
 fi
 
+# Проверка доступа к Docker/Podman
+echo "🔍 Проверка доступа к $CONTAINER_CMD..."
+if ! $CONTAINER_CMD info &>/dev/null; then
+    echo "❌ Ошибка: нет доступа к $CONTAINER_CMD"
+    echo ""
+    if [ "$CONTAINER_CMD" = "docker" ]; then
+        echo "💡 Для WSL с Docker Desktop:"
+        echo "   1. Убедитесь, что Docker Desktop запущен в Windows"
+        echo "   2. В настройках Docker Desktop включите интеграцию с WSL"
+        echo "   3. Перезапустите WSL: wsl --shutdown (в PowerShell), затем откройте снова"
+        echo ""
+        echo "💡 Для Linux:"
+        echo "   sudo usermod -aG docker $USER"
+        echo "   (затем выйдите и войдите снова)"
+    else
+        echo "💡 Для Podman:"
+        echo "   podman system migrate"
+        echo "   или выйдите и войдите снова"
+    fi
+    echo ""
+    read -p "Попробовать с sudo? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        CONTAINER_CMD="sudo $CONTAINER_CMD"
+        echo "⚠️  Используется sudo для $CONTAINER_CMD"
+    else
+        exit 1
+    fi
+else
+    echo "✅ Доступ к $CONTAINER_CMD подтвержден"
+fi
+echo ""
+
 # Определение установленной ОС
 detect_os() {
     if [ -f /etc/os-release ]; then

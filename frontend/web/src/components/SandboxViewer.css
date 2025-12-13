@@ -131,3 +131,91 @@
   color: #90caf9;
 }
 
+/* Индикатор загрузки с этапами */
+.sandbox-loading {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.loading-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.loading-stage {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.loading-stage.completed {
+  opacity: 0.7;
+  border-color: var(--accent-green);
+}
+
+.loading-stage.active {
+  border-color: #64b5f6;
+  background: rgba(100, 181, 246, 0.1);
+  box-shadow: 0 0 20px rgba(100, 181, 246, 0.2);
+}
+
+.stage-icon {
+  font-size: 2rem;
+  min-width: 3rem;
+  text-align: center;
+}
+
+.stage-content {
+  flex: 1;
+}
+
+.stage-label {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.stage-description {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.stage-check {
+  color: var(--accent-green);
+  font-size: 1.5rem;
+  font-weight: bold;
+  min-width: 2rem;
+  text-align: center;
+}
+
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid var(--bg-secondary);
+  border-top: 4px solid #64b5f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+

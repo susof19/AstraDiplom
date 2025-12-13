@@ -29,17 +29,28 @@ app.add_middleware(
 )
 
 # Подключаем роуты
-app.include_router(auth.router, prefix=settings.API_PREFIX, tags=["auth"])
+logger.info("📋 Регистрация API роутов...")
+app.include_router(auth.router, prefix=f"{settings.API_PREFIX}/auth", tags=["auth"])
+logger.info(f"   ✅ Auth роуты зарегистрированы: {settings.API_PREFIX}/auth")
 app.include_router(missions.router, prefix=settings.API_PREFIX, tags=["missions"])
+logger.info(f"   ✅ Missions роуты зарегистрированы: {settings.API_PREFIX}/missions")
 app.include_router(sandbox.router, prefix=settings.API_PREFIX, tags=["sandbox"])
+logger.info(f"   ✅ Sandbox роуты зарегистрированы: {settings.API_PREFIX}/sandbox")
 app.include_router(grader.router, prefix=settings.API_PREFIX, tags=["grader"])
+logger.info(f"   ✅ Grader роуты зарегистрированы: {settings.API_PREFIX}/grader")
 app.include_router(progress.router, prefix=settings.API_PREFIX, tags=["progress"])
+logger.info(f"   ✅ Progress роуты зарегистрированы: {settings.API_PREFIX}/progress")
+logger.info("✅ Все роуты зарегистрированы")
 
 
 @app.on_event("startup")
 async def startup_event():
     """Инициализация при запуске"""
-    logger.info("Запуск Linux Training Simulator API")
+    logger.info("=" * 60)
+    logger.info("🚀 Запуск Linux Training Simulator API")
+    logger.info(f"📡 API будет доступен на: http://{settings.API_HOST}:{settings.API_PORT}")
+    logger.info(f"📋 API префикс: {settings.API_PREFIX}")
+    logger.info("=" * 60)
     
     # Проверка и инициализация базы данных
     try:
@@ -111,6 +122,23 @@ async def root():
 async def health():
     """Проверка здоровья сервиса"""
     return {"status": "healthy"}
+
+
+@app.get("/api/v1/routes")
+async def list_routes():
+    """Список всех доступных роутов (для отладки)"""
+    routes = []
+    for route in app.routes:
+        if hasattr(route, "path") and hasattr(route, "methods"):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods) if route.methods else ["GET"]
+            })
+    return {
+        "routes": routes,
+        "total": len(routes),
+        "api_prefix": settings.API_PREFIX
+    }
 
 
 if __name__ == "__main__":

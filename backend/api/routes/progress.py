@@ -11,6 +11,9 @@ router = APIRouter()
 @router.get("/progress")
 async def get_progress(username: str = Depends(get_current_user)) -> Dict[str, Any]:
     """Получить прогресс пользователя"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"✅ Получение прогресса для пользователя: {username}")
     progress = get_user_progress(username)
     return progress.get_stats()
 

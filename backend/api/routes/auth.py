@@ -56,6 +56,9 @@ class UserResponse(BaseModel):
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     """Регистрация нового пользователя"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Проверка, существует ли пользователь
     if User.exists(request.username, db=db):
         raise HTTPException(
@@ -72,9 +75,16 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
             db=db
         )
     except ValueError as e:
+        logger.error(f"Ошибка создания пользователя {request.username}: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при создании пользователя {request.username}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ошибка при создании пользователя. Попробуйте позже."
         )
     
     # Создание токена

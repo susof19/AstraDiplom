@@ -3,6 +3,7 @@ import asyncio
 import json
 import subprocess
 import os
+import shutil
 from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -13,6 +14,26 @@ from backend.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _detect_container_command() -> str:
+    """Автоматически определить доступную команду (docker или podman)"""
+    # Сначала проверяем настройку из config
+    if settings.PODMAN_BINARY and settings.PODMAN_BINARY != "podman":
+        cmd = settings.PODMAN_BINARY.split()[0]
+        if shutil.which(cmd):
+            return settings.PODMAN_BINARY
+    
+    # Проверяем docker
+    if shutil.which("docker"):
+        return "docker"
+    
+    # Проверяем podman
+    if shutil.which("podman"):
+        return "podman"
+    
+    # Если ничего не найдено, возвращаем настройку по умолчанию
+    return settings.PODMAN_BINARY
+
+
 class ContainerSandbox:
     """Управление изолированным контейнером для миссии"""
     
@@ -20,6 +41,9 @@ class ContainerSandbox:
         self.mission_id = mission_id
         self.level = level
         self.use_vnc = use_vnc
+        
+        # Определяем команду контейнера один раз
+        self.container_cmd = _detect_container_command()
         
         # Нормализуем имя образа: если нет префикса, добавляем localhost/
         if "/" not in image and ":" in image:
@@ -44,9 +68,41 @@ class ContainerSandbox:
     async def create(self) -> bool:
         """Создать контейнер (rootless режим для Podman или Docker)"""
         try:
-            # Определяем базовую команду (podman или docker)
-            # В Astra Linux для rootless может использоваться rootlessenv
-            base_cmd = settings.PODMAN_BINARY.split()
+            # Автоматически определяем доступную команду
+            container_cmd = _detect_container_command()
+            base_cmd = container_cmd.split()
+            
+            # Проверяем, что команда доступна
+            cmd_name = base_cmd[0]
+            if not shutil.which(cmd_name):
+                logger.error(f"Команда {cmd_name} не найдена в PATH")
+                logger.error("💡 Установите Docker или Podman:")
+                logger.error("   - Для WSL: убедитесь, что Docker Desktop запущен в Windows")
+                logger.error("   - Для Linux: sudo apt-get install docker.io или podman")
+                return False
+            
+            # Проверяем, что команда работает
+            try:
+                result = await asyncio.create_subprocess_exec(
+                    cmd_name, "--version",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await result.wait()
+                if result.returncode != 0:
+                    logger.error(f"Команда {cmd_name} не работает (код возврата: {result.returncode})")
+                    logger.error("💡 Убедитесь, что Docker Desktop запущен в Windows (для WSL)")
+                    return False
+                logger.info(f"Используется контейнерная команда: {cmd_name}")
+            except FileNotFoundError:
+                logger.error(f"Команда {cmd_name} не найдена")
+                logger.error("💡 Установите Docker или Podman:")
+                logger.error("   - Для WSL: убедитесь, что Docker Desktop запущен в Windows")
+                logger.error("   - Для Linux: sudo apt-get install docker.io или podman")
+                return False
+            except Exception as e:
+                logger.error(f"Ошибка проверки команды {cmd_name}: {e}")
+                return False
             
             # Определяем параметры в зависимости от уровня
             cmd = base_cmd + [
@@ -58,14 +114,22 @@ class ContainerSandbox:
                 "--cpus", settings.SANDBOX_CPU_LIMIT,
             ]
             
+            # Определяем, какая команда используется
+            is_podman = "podman" in cmd_name.lower()
+            is_docker = "docker" in cmd_name.lower()
+            
             # Для rootless режима (Podman) или обычного режима (Docker)
-            if settings.PODMAN_ROOTLESS:
-                # В rootless режиме некоторые опции могут отличаться
-                # label=disable может не работать, используем другие опции
+            if is_podman and settings.PODMAN_ROOTLESS:
+                # В rootless режиме Podman используем --userns=keep-id
                 cmd.extend([
                     "--userns=keep-id",  # Сохранить UID/GID пользователя
                 ])
+            elif is_docker:
+                # Docker не поддерживает --userns=keep-id, используем другие опции
+                # В WSL/Docker Desktop обычно не нужны специальные опции безопасности
+                pass  # Docker Desktop в WSL работает без дополнительных опций
             else:
+                # Для других случаев (например, Docker с rootless)
                 cmd.extend([
                     "--security-opt", "label=disable",
                 ])
@@ -124,10 +188,9 @@ class ContainerSandbox:
             return await self.create()
         
         try:
+            cmd = self.container_cmd.split() + ["start", self.container_name]
             result = await asyncio.create_subprocess_exec(
-                settings.PODMAN_BINARY,
-                "start",
-                self.container_name,
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -147,10 +210,9 @@ class ContainerSandbox:
             return True
         
         try:
+            cmd = self.container_cmd.split() + ["stop", self.container_name]
             result = await asyncio.create_subprocess_exec(
-                settings.PODMAN_BINARY,
-                "stop",
-                self.container_name,
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -168,10 +230,9 @@ class ContainerSandbox:
             return True
         
         try:
+            cmd = self.container_cmd.split() + ["rm", "-f"]
             result = await asyncio.create_subprocess_exec(
-                settings.PODMAN_BINARY,
-                "rm",
-                "-f",
+                *cmd,
                 self.container_name,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
@@ -191,12 +252,9 @@ class ContainerSandbox:
             return "", 1
         
         try:
+            cmd = self.container_cmd.split() + ["exec", "-u", user, self.container_name, "sh", "-c", command]
             result = await asyncio.create_subprocess_exec(
-                settings.PODMAN_BINARY,
-                "exec",
-                "-u", user,
-                self.container_name,
-                "sh", "-c", command,
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -212,10 +270,9 @@ class ContainerSandbox:
             return {}
         
         try:
+            cmd = self.container_cmd.split() + ["inspect", self.container_name]
             result = await asyncio.create_subprocess_exec(
-                settings.PODMAN_BINARY,
-                "inspect",
-                self.container_name,
+                *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )

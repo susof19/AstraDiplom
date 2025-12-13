@@ -340,7 +340,7 @@ pip install -r requirements.txt 2>&1 | tee /tmp/pip-install.log | \
 # Проверяем успешность установки по коду возврата pip
 PIP_EXIT_CODE=${PIPESTATUS[0]}
 if [ $PIP_EXIT_CODE -eq 0 ]; then
-    echo "✅ Backend зависимости установлены"
+echo "✅ Backend зависимости установлены"
 else
     echo "⚠️  Возможны проблемы с установкой зависимостей (код возврата: $PIP_EXIT_CODE)"
     echo "💡 Показываем последние строки лога:"

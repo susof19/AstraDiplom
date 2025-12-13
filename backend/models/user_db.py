@@ -11,6 +11,19 @@ from backend.config import settings
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+def truncate_to_72_bytes(text: str) -> str:
+    """Обрезать строку до 72 байт, сохраняя валидность UTF-8"""
+    text_bytes = text.encode('utf-8')
+    if len(text_bytes) <= 72:
+        return text
+    # Обрезаем до 72 байт
+    text_bytes = text_bytes[:72]
+    # Убираем неполные UTF-8 последовательности в конце
+    while text_bytes and (text_bytes[-1] & 0xC0) == 0x80:
+        text_bytes = text_bytes[:-1]
+    return text_bytes.decode('utf-8', errors='ignore')
+
+
 class User:
     """Модель пользователя с использованием PostgreSQL"""
     
@@ -89,22 +102,30 @@ class User:
     
     def set_password(self, password: str):
         """Установить хеш пароля"""
+        # bcrypt имеет ограничение в 72 байта, обрезаем если необходимо
+        password = truncate_to_72_bytes(password)
         self.password_hash = pwd_context.hash(password)
     
     def verify_password(self, password: str) -> bool:
         """Проверить пароль"""
         if not self.password_hash:
             return False
+        # bcrypt имеет ограничение в 72 байта, обрезаем если необходимо
+        password = truncate_to_72_bytes(password)
         return pwd_context.verify(password, self.password_hash)
     
     def set_secret_code(self, secret_code: str):
         """Установить хеш секретного кода"""
+        # bcrypt имеет ограничение в 72 байта, обрезаем если необходимо
+        secret_code = truncate_to_72_bytes(secret_code)
         self.secret_code_hash = pwd_context.hash(secret_code)
     
     def verify_secret_code(self, secret_code: str) -> bool:
         """Проверить секретный код"""
         if not self.secret_code_hash:
             return False
+        # bcrypt имеет ограничение в 72 байта, обрезаем если необходимо
+        secret_code = truncate_to_72_bytes(secret_code)
         return pwd_context.verify(secret_code, self.secret_code_hash)
     
     def update_last_login(self, db: Optional[Session] = None):

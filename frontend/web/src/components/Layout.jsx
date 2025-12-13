@@ -2,22 +2,32 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getProgress } from '../api/missions'
 import { useAuth } from '../contexts/AuthContext'
+import axios from 'axios'
 import './Layout.css'
 
 function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout, isAuthenticated } = useAuth()
+  const { user, logout, isAuthenticated, token } = useAuth()
   
   // Не показываем Layout на страницах аутентификации
   const isAuthPage = ['/login', '/register', '/recover-password'].includes(location.pathname)
   
   // Хуки должны вызываться до условных возвратов
-  const { data: progress } = useQuery({
+  // Запрос на progress делаем только после полной загрузки пользователя И наличия токена
+  const { data: progress, isLoading: progressLoading } = useQuery({
     queryKey: ['progress'],
     queryFn: () => getProgress(),
     retry: false,
-    enabled: isAuthenticated && !isAuthPage  // Не выполняем запрос на страницах аутентификации
+    enabled: Boolean(
+      isAuthenticated && 
+      !isAuthPage && 
+      user && 
+      user.username && 
+      token && 
+      axios.defaults.headers.common['Authorization']
+    ),  // Не выполняем запрос пока нет токена в axios
+    staleTime: 30000  // Кешируем на 30 секунд
   })
   
   if (isAuthPage) {

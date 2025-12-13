@@ -97,7 +97,7 @@ if [ "$IMAGE_FOUND" = false ]; then
                 ./create-astra-image.sh --vnc
                 ;;
             3)
-                ./create-astra-image.sh
+        ./create-astra-image.sh
                 ./create-astra-image.sh --vnc
                 ;;
             *)
@@ -171,7 +171,15 @@ cd backend
 source venv/bin/activate
 nohup python run.py > ../backend.log 2>&1 &
 BACKEND_PID=$!
-echo "✅ Backend запущен (PID: $BACKEND_PID)"
+echo "✅ Backend запущен (PID родительского процесса: $BACKEND_PID)"
+
+# Ждем немного и находим реальный PID процесса uvicorn
+sleep 2
+REAL_BACKEND_PID=$(pgrep -f 'uvicorn.*main:app|python.*run.py' | head -1)
+if [ -n "$REAL_BACKEND_PID" ]; then
+    BACKEND_PID=$REAL_BACKEND_PID
+    echo "   Реальный PID процесса: $BACKEND_PID"
+fi
 cd ..
 
 # Ожидание запуска Backend
@@ -193,7 +201,15 @@ echo "🌐 Запуск Frontend..."
 cd frontend/web
 BROWSER=none nohup npm start > ../../frontend.log 2>&1 &
 FRONTEND_PID=$!
-echo "✅ Frontend запущен (PID: $FRONTEND_PID)"
+echo "✅ Frontend запущен (PID родительского процесса: $FRONTEND_PID)"
+
+# Ждем немного и находим реальный PID процесса react-scripts
+sleep 3
+REAL_FRONTEND_PID=$(pgrep -f 'react-scripts start' | head -1)
+if [ -n "$REAL_FRONTEND_PID" ]; then
+    FRONTEND_PID=$REAL_FRONTEND_PID
+    echo "   Реальный PID процесса: $FRONTEND_PID"
+fi
 cd ../..
 
 # Ожидание запуска Frontend
