@@ -71,16 +71,23 @@ class MissionChecker:
             user_home = "/root" if container_user == "root" else f"/home/{container_user}"
         
         def replace_user_path(path: str) -> str:
-            """Заменяет /root, /home/sandboxuser, /home/user на реальный путь пользователя"""
-            # Если путь начинается с /root, заменяем на user_home
-            # Если путь начинается с /home/user или /home/sandboxuser, заменяем на user_home
-            if path.startswith("/root/"):
-                return path.replace("/root", user_home, 1)  # Заменяем только первое вхождение
-            elif path.startswith("/home/user/"):
-                return path.replace("/home/user", user_home, 1)
-            elif path.startswith("/home/sandboxuser/"):
-                return path.replace("/home/sandboxuser", user_home, 1)
-            return path
+            """Заменяет /home/sandboxuser, /home/user на реальный путь пользователя, но НЕ заменяет /root если пользователь root"""
+            if container_user == "root":
+                # Для root не заменяем /root, только /home/ пути
+                if path.startswith("/home/user/"):
+                    return path.replace("/home/user", user_home, 1)
+                elif path.startswith("/home/sandboxuser/"):
+                    return path.replace("/home/sandboxuser", user_home, 1)
+                return path
+            else:
+                # Для других пользователей заменяем все пути
+                if path.startswith("/root/"):
+                    return path.replace("/root", user_home, 1)
+                elif path.startswith("/home/user/"):
+                    return path.replace("/home/user", user_home, 1)
+                elif path.startswith("/home/sandboxuser/"):
+                    return path.replace("/home/sandboxuser", user_home, 1)
+                return path
         
         checks = config.get("checks", [])
         # Заменяем пути в checks на реальные пути пользователя
@@ -172,6 +179,7 @@ class MissionChecker:
         """Проверить существование файла или директории"""
         path = check.get("path")
         check_type = check.get("file_type", "file")  # file, directory, или both
+        expected = check.get("expected", True)  # True - должен существовать, False - не должен существовать
         
         if not path:
             return {"name": check.get("name"), "passed": False, "message": "Путь не указан"}
@@ -193,17 +201,26 @@ class MissionChecker:
                 exists = "exists" in output
                 item_type = "Файл или директория"
             
-            logger.debug(f"Проверка {item_type} {path}: exists={exists}, output='{output.strip()}', code={code}")
+            logger.debug(f"Проверка {item_type} {path}: exists={exists}, expected={expected}, output='{output.strip()}', code={code}")
         except Exception as e:
             logger.error(f"Ошибка проверки файла/директории {path}: {e}")
             exists = False
             item_type = "Файл или директория"
         
+        # Если expected=False, то passed=True когда файл НЕ существует
+        # Если expected=True (по умолчанию), то passed=True когда файл существует
+        passed = (exists == expected)
+        
+        if expected is False:
+            message = f"{item_type} {'не найден' if passed else 'найден (должен быть удален)'}: {path}"
+        else:
+            message = f"{item_type} {'найден' if passed else 'не найден'}: {path}"
+        
         return {
             "name": check.get("name", f"{item_type} exists: {path}"),
             "type": "file_exists",
-            "passed": exists,
-            "message": f"{item_type} {'найден' if exists else 'не найден'}: {path}"
+            "passed": passed,
+            "message": message
         }
     
     async def _check_file_content(self, check: Dict[str, Any], sandbox: ContainerSandbox) -> Dict[str, Any]:

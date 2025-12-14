@@ -1,0 +1,52 @@
+name: "Создать архив через терминал"
+description: "В терминале перейдите в домашнюю директорию (cd ~) и создайте tar.gz-архив папки Documents/ProjectFiles, назовите его project_backup.tar.gz."
+level: "B"
+difficulty: 2
+estimated_time: 5
+
+objectives:
+  - "Открыть терминал"
+  - "Перейти в домашнюю директорию (cd ~)"
+  - "Создать tar.gz-архив папки Documents/ProjectFiles"
+  - "Назвать архив project_backup.tar.gz"
+
+hints:
+  - "Терминал можно открыть через Меню → Терминал или нажав Ctrl+Alt+T"
+  - "Для создания архива используйте команду: tar -czf project_backup.tar.gz Documents/ProjectFiles"
+  - "Проверьте наличие архива командой: ls -lh project_backup.tar.gz"
+
+setup:
+  directories:
+    - "/root/Documents/ProjectFiles"
+  files:
+    - path: "/root/Documents/ProjectFiles/file1.txt"
+      content: "Файл 1"
+      mode: "644"
+    - path: "/root/Documents/ProjectFiles/file2.txt"
+      content: "Файл 2"
+      mode: "644"
+    - path: "/root/Documents/ProjectFiles/subfolder/file3.txt"
+      content: "Файл 3"
+      mode: "644"
+  commands:
+    - "export DISPLAY=:1 && fly-term > /dev/null 2>&1 &"
+
+checks:
+  - name: "Архив project_backup.tar.gz создан в домашней папке"
+    type: "file_exists"
+    path: "/root/project_backup.tar.gz"
+    file_type: "file"
+    points: 50
+  - name: "Архив содержит файлы из папки ProjectFiles"
+    type: "command_output"
+    command: "tar -tzf /root/project_backup.tar.gz 2>/dev/null | wc -l"
+    operator: "greater_than"
+    expected: "0"
+    points: 30
+  - name: "Архив содержит папку ProjectFiles"
+    type: "command_output"
+    command: "tar -tzf /root/project_backup.tar.gz 2>/dev/null | grep -i 'ProjectFiles' | head -1"
+    operator: "contains"
+    expected: "ProjectFiles"
+    points: 20
+

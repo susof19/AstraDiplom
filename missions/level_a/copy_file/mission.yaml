@@ -5,7 +5,7 @@ difficulty: 1
 estimated_time: 5
 
 objectives:
-  - "Открыть файловый менеджер Thunar"
+  - "Открыть файловый менеджер"
   - "Найти файл photo.jpg в папке Downloads"
   - "Скопировать файл в папку Documents"
 

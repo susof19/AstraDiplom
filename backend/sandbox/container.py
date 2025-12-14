@@ -194,11 +194,11 @@ class ContainerSandbox:
                 
                 logger.info(f"VNC порты: VNC={self.vnc_port}->{vnc_container_port}, noVNC={self.novnc_port}->{novnc_container_port} (проброшены на 0.0.0.0)")
             
-            # Монтируем read-only миссию и данные
-            mission_dir = settings.MISSIONS_DIR / f"level_{self.level.lower()}" / self.mission_id
-            if mission_dir.exists():
+            # Монтируем read-only папку уровня (чтобы можно было использовать файлы из других миссий)
+            level_dir = settings.MISSIONS_DIR / f"level_{self.level.lower()}"
+            if level_dir.exists():
                 cmd.extend([
-                    "-v", f"{mission_dir}:/mission:ro",
+                    "-v", f"{level_dir}:/mission:ro",
                 ])
             
             # Для уровня A используем стандартный entrypoint образа
@@ -557,8 +557,21 @@ class ContainerSandbox:
                     await self.exec_command(f"mkdir -p '{parent_dir}'", user=container_user)
                     
                     if file_source:
-                        # Копируем файл из папки миссии (/mission/ монтирован read-only)
-                        source_path = f"/mission/{file_source}"
+                        # Копируем файл из папки уровня (/mission/ монтирован read-only)
+                        # file_source может быть относительным путем, например "../copy_file/photo.jpg"
+                        # или просто "photo.jpg" для файла в текущей миссии
+                        if file_source.startswith("../"):
+                            # Относительный путь: ../copy_file/photo.jpg -> /mission/copy_file/photo.jpg
+                            source_path = f"/mission/{file_source.replace('../', '')}"
+                        elif file_source.startswith("./"):
+                            # Относительный путь: ./photo.jpg -> /mission/mission_id/photo.jpg
+                            source_path = f"/mission/{self.mission_id}/{file_source.replace('./', '')}"
+                        elif "/" in file_source:
+                            # Абсолютный путь относительно уровня: copy_file/photo.jpg -> /mission/copy_file/photo.jpg
+                            source_path = f"/mission/{file_source}"
+                        else:
+                            # Файл в текущей миссии: photo.jpg -> /mission/mission_id/photo.jpg
+                            source_path = f"/mission/{self.mission_id}/{file_source}"
                         logger.info(f"[SETUP] Копирование файла из {source_path} в {file_path}")
                         output, code = await self.exec_command(
                             f"cp '{source_path}' '{file_path}' 2>&1", user=container_user
@@ -569,9 +582,13 @@ class ContainerSandbox:
                             logger.error(f"[SETUP] ✗ Не удалось скопировать файл из {source_path} в {file_path}: код {code}, output: {output}")
                     elif file_content is not None:
                         # Создаём файл с содержимым
-                        escaped_content = str(file_content).replace("'", "'\"'\"'").replace("$", "\\$")
+                        # Используем printf для поддержки многострочного контента и специальных символов
+                        content_str = str(file_content)
+                        # Экранируем специальные символы для shell
+                        escaped_content = content_str.replace("\\", "\\\\").replace("'", "'\"'\"'").replace("$", "\\$").replace("`", "\\`")
+                        # Используем printf для правильной обработки \n
                         output, code = await self.exec_command(
-                            f"echo '{escaped_content}' > '{file_path}'", user=container_user
+                            f"printf '%s\\n' '{escaped_content}' > '{file_path}'", user=container_user
                         )
                         if code == 0:
                             logger.debug(f"Файл создан с содержимым: {file_path}")

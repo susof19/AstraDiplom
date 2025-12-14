@@ -57,7 +57,7 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     enabled: !!missionId,
     refetchInterval: (query) => {
       // Если песочница создается или VNC не готов, опрашиваем чаще
-      if (isCreating || (query.state.data && !vncReady && level === 'A')) {
+      if (isCreating || (query.state.data && !vncReady && (level === 'A' || level === 'B'))) {
         return 2000
       }
       return 5000
@@ -81,7 +81,7 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     // Если есть container_id, значит контейнер создан и запущен
     if (sandbox.container_id) {
       // Для уровня A нужен VNC
-      if (level === 'A') {
+      if (level === 'A' || level === 'B') {
         if (!sandbox.vnc_port) {
           setLoadingStage(LOADING_STAGES.INITIALIZING)
         } else if (!sandbox.novnc_port) {
@@ -244,7 +244,7 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
 
   // Для уровня A - GUI через noVNC
   // Показываем VNC только если песочница запущена
-  if ((level === 'A' || sandbox.novnc_port) && sandbox.vnc_url && sandbox.status === 'running' && !isSandboxStopped) {
+  if ((level === 'A' || level === 'B' || sandbox.novnc_port) && sandbox.vnc_url && sandbox.status === 'running' && !isSandboxStopped) {
     // Если соединение не установлено долгое время, показываем сообщение о проблеме
     const showConnectionError = vncError && vncError.includes('Не удалось установить соединение')
     

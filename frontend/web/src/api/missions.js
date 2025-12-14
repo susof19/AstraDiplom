@@ -18,7 +18,7 @@ export const createSandbox = async (missionId, level, distro = null) => {
     mission_id: missionId,
     level,
     distro: distro, // Опционально: debian, ubuntu, astra
-    use_vnc: level === 'A' // VNC для уровня A
+    use_vnc: level.toUpperCase() === 'A' || level.toUpperCase() === 'B' // VNC для уровней A и B
   })
   return response.data
 }
@@ -62,6 +62,28 @@ export const getProgress = async () => {
 
 export const stopSandbox = async (missionId) => {
   const response = await axios.post(`${API_BASE}/sandbox/${missionId}/stop`)
+  return response.data
+}
+
+export const getActiveSandbox = async () => {
+  const response = await axios.get(`${API_BASE}/sandbox/active`)
+  return response.data
+}
+
+export const getProcesses = async (missionId) => {
+  const response = await axios.get(`${API_BASE}/sandbox/${missionId}/processes`)
+  return response.data
+}
+
+export const getFilesystem = async (missionId, path = '/root') => {
+  const response = await axios.get(`${API_BASE}/sandbox/${missionId}/filesystem`, {
+    params: { path }
+  })
+  return response.data
+}
+
+export const getNetwork = async (missionId) => {
+  const response = await axios.get(`${API_BASE}/sandbox/${missionId}/network`)
   return response.data
 }
 

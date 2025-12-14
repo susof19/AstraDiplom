@@ -1,0 +1,40 @@
+name: "Перенести файл в Корзину (Trash) через GUI"
+description: "Через файловый менеджер переместите файл old_photo.jpg из «Загрузки» в «Корзину» (Trash)"
+level: "A"
+difficulty: 1
+estimated_time: 3
+
+objectives:
+  - "Открыть файловый менеджер"
+  - "Найти файл old_photo.jpg в папке Downloads"
+  - "Переместить файл в Корзину"
+
+hints:
+  - "Файловый менеджер можно открыть через Меню → Файловый менеджер"
+  - "Папка Downloads (~/Downloads) находится в вашей домашней директории"
+  - "Для перемещения в корзину: правый клик → Переместить в корзину или Delete"
+  - "Корзина обычно находится в ~/.local/share/Trash/files"
+
+setup:
+  # Создаём директорию Downloads и файл old_photo.jpg
+  directories:
+    - "/root/Downloads"
+    - "/root/.local/share/Trash/files"
+  files:
+    - path: "/root/Downloads/old_photo.jpg"
+      content: "test_photo_content"
+      mode: "644"
+
+checks:
+  - name: "Файл перемещён в корзину"
+    type: "file_exists"
+    path: "/root/.local/share/Trash/files/old_photo.jpg"
+    file_type: "file"
+    points: 50
+  - name: "Файл удалён из Downloads"
+    type: "command_output"
+    command: "test -f /root/Downloads/old_photo.jpg && echo 'exists' || echo 'not_found'"
+    operator: "contains"
+    expected: "not_found"
+    points: 50
+

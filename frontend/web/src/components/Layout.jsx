@@ -1,14 +1,18 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getProgress } from '../api/missions'
+import { getProgress, getActiveSandbox } from '../api/missions'
 import { useAuth } from '../contexts/AuthContext'
 import axios from 'axios'
+import { useState } from 'react'
+import SandboxInfoDrawer from './SandboxInfoDrawer'
 import './Layout.css'
 
 function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout, isAuthenticated, token } = useAuth()
+  const [drawerView, setDrawerView] = useState(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   
   // Не показываем Layout на страницах аутентификации
   const isAuthPage = ['/login', '/register', '/recover-password'].includes(location.pathname)
@@ -30,6 +34,17 @@ function Layout({ children }) {
     staleTime: 30000  // Кешируем на 30 секунд
   })
   
+  // Проверяем наличие активной песочницы
+  const { data: activeSandbox } = useQuery({
+    queryKey: ['activeSandbox'],
+    queryFn: () => getActiveSandbox(),
+    enabled: !isAuthPage && isAuthenticated,
+    refetchInterval: 5000, // Обновляем каждые 5 секунд
+    retry: false
+  })
+  
+  const hasActiveSandbox = activeSandbox?.has_active || false
+  
   if (isAuthPage) {
     return <>{children}</>
   }
@@ -47,6 +62,18 @@ function Layout({ children }) {
 
   const totalMissions = stats.total_missions_completed || 0
   const level = totalMissions < 5 ? 'Новичок' : totalMissions < 10 ? 'Специалист' : 'Эксперт'
+  
+  const handleNavClick = (view) => {
+    if (hasActiveSandbox) {
+      setDrawerView(view)
+      setDrawerOpen(true)
+    }
+  }
+  
+  const handleCloseDrawer = () => {
+    setDrawerOpen(false)
+    setDrawerView(null)
+  }
 
   return (
     <div className="layout">
@@ -103,24 +130,42 @@ function Layout({ children }) {
               <span className="nav-icon">🎯</span>
               <span>Миссии</span>
             </Link>
-            <div className="nav-item">
-              <span className="nav-icon">⚙️</span>
-              <span>Процессы</span>
-            </div>
-            <div className="nav-item">
-              <span className="nav-icon">📁</span>
-              <span>Файловая система</span>
-            </div>
-            <div className="nav-item">
-              <span className="nav-icon">🌐</span>
-              <span>Сеть</span>
-            </div>
+            {hasActiveSandbox && (
+              <>
+                <div 
+                  className={`nav-item ${drawerOpen && drawerView === 'processes' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('processes')}
+                >
+                  <span className="nav-icon">⚙️</span>
+                  <span>Процессы</span>
+                </div>
+                <div 
+                  className={`nav-item ${drawerOpen && drawerView === 'filesystem' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('filesystem')}
+                >
+                  <span className="nav-icon">📁</span>
+                  <span>Файловая система</span>
+                </div>
+                <div 
+                  className={`nav-item ${drawerOpen && drawerView === 'network' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('network')}
+                >
+                  <span className="nav-icon">🌐</span>
+                  <span>Сеть</span>
+                </div>
+              </>
+            )}
           </nav>
         </aside>
         <main className="main-content">
           {children}
         </main>
       </div>
+      <SandboxInfoDrawer 
+        isOpen={drawerOpen} 
+        onClose={handleCloseDrawer} 
+        view={drawerView}
+      />
     </div>
   )
 }

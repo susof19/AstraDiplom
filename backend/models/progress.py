@@ -1,6 +1,6 @@
 """Модели прогресса и геймификации"""
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 import json
 
@@ -53,27 +53,53 @@ class UserProgress:
         except Exception as e:
             print(f"Ошибка сохранения прогресса: {e}")
     
-    def complete_mission(self, mission_id: str, level: str, score: int):
-        """Отметить миссию как выполненную"""
+    def complete_mission(self, mission_id: str, level: str, score: int) -> Dict[str, Any]:
+        """Отметить миссию как выполненную
+        
+        Args:
+            mission_id: ID миссии
+            level: Уровень миссии
+            score: Оценка в процентах (0-100)
+        
+        Returns:
+            dict с ключами:
+            - is_new: bool - первое прохождение миссии
+            - is_improved: bool - улучшен результат
+            - old_score: int - предыдущий результат (None если первое прохождение)
+        """
+        result = {
+            "is_new": False,
+            "is_improved": False,
+            "old_score": None
+        }
+        
         if mission_id not in self.missions_completed:
+            # Первое прохождение миссии
             self.missions_completed[mission_id] = {
                 "level": level,
                 "score": score,
                 "completed_at": datetime.now().isoformat(),
                 "attempts": 1
             }
-            self.total_score += score
+            # НЕ добавляем score в total_score здесь - XP будет рассчитываться отдельно в grader
             self.level_progress[level] = self.level_progress.get(level, 0) + 1
             self._check_achievements(mission_id, level, score)
+            result["is_new"] = True
         else:
-            # Обновляем, если результат лучше
+            # Повторное прохождение
             old_score = self.missions_completed[mission_id]["score"]
+            result["old_score"] = old_score
+            
             if score > old_score:
-                self.total_score += (score - old_score)
+                # Улучшен результат - обновляем score
                 self.missions_completed[mission_id]["score"] = score
+                result["is_improved"] = True
+            # Если результат не лучше или равен - не обновляем score
+            
             self.missions_completed[mission_id]["attempts"] += 1
         
         self.save()
+        return result
     
     def _check_achievements(self, mission_id: str, level: str, score: int):
         """Проверить и выдать достижения"""

@@ -1,41 +1,47 @@
 name: "Организация файлов"
-description: "Создайте папку 'Работа' и переместите в неё все файлы .docx из папки Загрузки"
+description: "Создайте папку 'Work' и переместите в неё все файлы .docx из папки Downloads"
 level: "A"
 difficulty: 2
 estimated_time: 7
 
 objectives:
-  - "Создать папку 'Работа' в домашней директории"
-  - "Найти все файлы .docx в папке Загрузки"
+  - "Создать папку 'Work' в домашней директории"
+  - "Найти все файлы .docx в папке Downloads"
   - "Переместить файлы в новую папку"
 
 hints:
   - "Используйте файловый менеджер для создания папки"
   - "Можно использовать поиск для фильтрации файлов"
+  - "Папка Downloads находится в ~/Downloads"
 
 setup:
-  # Создаём тестовые файлы .docx в папке Загрузки
+  # Создаём тестовые файлы .docx в папке Downloads
   directories:
-    - "/home/sandboxuser/Загрузки"
-    - "/home/sandboxuser/Работа"
+    - "/root/Downloads"
   files:
-    - path: "/home/sandboxuser/Загрузки/file1.docx"
+    - path: "/root/Downloads/file1.docx"
       content: "test_doc_content_1"
-    - path: "/home/sandboxuser/Загрузки/file2.docx"
+    - path: "/root/Downloads/file2.docx"
       content: "test_doc_content_2"
-    - path: "/home/sandboxuser/Загрузки/other.txt"
+    - path: "/root/Downloads/other.txt"
       content: "this_should_not_be_moved"
 
 checks:
-  - name: "Папка создана"
+  - name: "Папка Work создана"
     type: "file_exists"
-    path: "/home/sandboxuser/Работа"
+    path: "/root/Work"
     file_type: "directory"
     points: 30
-  - name: "Файлы перемещены"
+  - name: "Файлы .docx перемещены"
     type: "command_output"
-    command: "find /home/sandboxuser/Работа -name '*.docx' | wc -l"
-    expected: "2"
+    command: "find /root/Work -name '*.docx' 2>/dev/null | wc -l"
     operator: "equals"
-    points: 70
+    expected: "2"
+    points: 40
+  - name: "Файлы .docx удалены из Downloads"
+    type: "command_output"
+    command: "find /root/Downloads -name '*.docx' 2>/dev/null | wc -l"
+    operator: "equals"
+    expected: "0"
+    points: 30
 

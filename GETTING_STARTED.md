@@ -5,10 +5,11 @@
 ## Содержание
 
 1. [Быстрый старт](#быстрый-старт)
-2. [Создание образов](#создание-образов)
-3. [Тестирование миссий](#тестирование-миссий)
-4. [Решение проблем](#решение-проблем)
-5. [Быстрая справка](#быстрая-справка)
+2. [Установка на Astra Linux Special Edition](#установка-на-astra-linux-special-edition)
+3. [Создание образов](#создание-образов)
+4. [Тестирование миссий](#тестирование-миссий)
+5. [Решение проблем](#решение-проблем)
+6. [Быстрая справка](#быстрая-справка)
 
 ---
 
@@ -86,6 +87,61 @@ npm start
 ```
 
 **5. Откройте в браузере**: http://localhost:3000
+
+---
+
+## Установка на Astra Linux Special Edition
+
+### Быстрый старт на Astra Linux
+
+Самый простой способ - использовать скрипт быстрого старта:
+
+```bash
+cd AstraDiplom
+chmod +x scripts/quickstart-astra.sh
+./scripts/quickstart-astra.sh
+```
+
+Скрипт автоматически:
+1. ✅ Установит все необходимые пакеты (Python, Node.js, Podman)
+2. ✅ Настроит виртуальное окружение для backend
+3. ✅ Установит зависимости frontend
+4. ✅ Создаст скрипт запуска `start-trainer.sh`
+5. ✅ Создаст ярлык на рабочем столе
+6. ✅ Опционально создаст образ Astra Linux
+
+### Установка Podman на Astra Linux
+
+**Вариант 1: Использование Podman напрямую**
+
+```bash
+# Установка Podman
+sudo apt install podman
+
+# Настройка rootless режима
+podman system migrate
+```
+
+**Вариант 2: Использование Docker с rootless-helper-astra**
+
+```bash
+# Установка rootless-helper-astra
+sudo apt install rootless-helper-astra
+
+# Включение пользовательских служб Docker для rootless режима
+sudo systemctl start rootless-docker@<имя_пользователя>@<метка_безопасности>
+sudo systemctl enable rootless-docker@<имя_пользователя>@<метка_безопасности>
+```
+
+### Особенности Astra Linux
+
+**CD-ROM репозитории**: Astra Linux может быть настроена на использование CD-ROM как источника пакетов. Скрипт `quickstart-astra.sh` автоматически отключает CD-ROM репозитории.
+
+**Проверка уязвимостей**: Astra Linux имеет встроенную проверку уязвимостей в пакетах. Скрипт `create-astra-image.sh` автоматически отключает проверку уязвимостей в chroot-окружении.
+
+**Hardened ядро**: В hardened ядре отключены некоторые функции, необходимые для rootless контейнеров. Если вы используете hardened ядро, используйте привилегированный режим Podman.
+
+**МКЦ (Мандатное управление доступом)**: При работе с МКЦ могут потребоваться дополнительные настройки меток безопасности. Обычно для тренажёра это не требуется, так как контейнеры изолированы.
 
 ---
 
@@ -424,9 +480,8 @@ npm start
 
 ### Установка
 
-- **Astra Linux**: [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md)
-- **Windows**: [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md)
-- **Детальная настройка**: [docs/SETUP.md](docs/SETUP.md)
+- **Windows и WSL**: [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md)
+- **Astra Linux**: См. раздел [Установка на Astra Linux Special Edition](#установка-на-astra-linux-special-edition) в этом документе
 
 ### Решение проблем
 

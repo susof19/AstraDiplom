@@ -17,13 +17,28 @@ function MissionList() {
   }
 
   const levelNames = {
-    A: 'Новички'
+    A: 'Новички',
+    B: 'Продвинутые пользователи'
   }
 
   return (
     <div className="mission-list">
       <div className="header-section">
         <h1>Миссии</h1>
+        <div className="level-tabs">
+          <Link 
+            to="/missions?level=A" 
+            className={`level-tab ${(!level || level === 'A') ? 'active' : ''}`}
+          >
+            Уровень A: Новички
+          </Link>
+          <Link 
+            to="/missions?level=B" 
+            className={`level-tab ${level === 'B' ? 'active' : ''}`}
+          >
+            Уровень B: Продвинутые пользователи
+          </Link>
+        </div>
         {level && (
           <div className="level-badge">
             Уровень {level}: {levelNames[level]}
@@ -41,8 +56,14 @@ function MissionList() {
             <Link
               key={mission.id}
               to={`/missions/${mission.id}`}
-              className="mission-card"
+              className={`mission-card ${mission.completed ? 'completed' : ''}`}
             >
+              {mission.completed && (
+                <div className="mission-completed-badge">
+                  <span className="checkmark">✓</span>
+                  <span className="score">{mission.score}%</span>
+                </div>
+              )}
               <div className="mission-header">
                 <span className={`level-tag level-${mission.level}`}>
                   Уровень {mission.level}
@@ -55,7 +76,11 @@ function MissionList() {
               <p>{mission.description}</p>
               <div className="mission-footer">
                 <span className="time">⏱️ {mission.estimated_time} мин</span>
-                <span className="arrow">→</span>
+                {mission.completed ? (
+                  <span className="completed-indicator">✓ Пройдено</span>
+                ) : (
+                  <span className="arrow">→</span>
+                )}
               </div>
             </Link>
           ))}

@@ -47,7 +47,7 @@ class SandboxManager:
         
         if create_result:
             # Для GUI миссий ждём готовности VNC
-            if use_vnc and (level == "A" or sandbox.use_vnc):
+            if use_vnc and (level.upper() in ["A", "B"] or sandbox.use_vnc):
                 logger.info(f"Ожидание запуска VNC сервера для миссии {mission_id}...")
                 vnc_ready = await sandbox.wait_for_vnc(timeout=60)
                 if not vnc_ready:

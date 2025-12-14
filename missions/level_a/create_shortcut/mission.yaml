@@ -1,20 +1,53 @@
 name: "Создание ярлыка на рабочем столе"
-description: "Создайте ярлык для приложения Терминал на рабочем столе"
+description: "Создайте ярлык для приложения Терминал и ярлык для файла photo.jpg из папки Downloads на рабочем столе"
 level: "A"
 difficulty: 1
-estimated_time: 3
+estimated_time: 5
 
 objectives:
   - "Найти приложение Терминал"
-  - "Создать ярлык на рабочем столе"
+  - "Создать ярлык приложения Терминал на рабочем столе"
+  - "Найти файл photo.jpg в папке Downloads"
+  - "Создать ярлык файла photo.jpg на рабочем столе"
 
 hints:
   - "Ярлыки на рабочем столе хранятся в ~/Desktop"
-  - "Используйте контекстное меню приложения"
+  - "Создать ярлык программы: 1. Правая кнопка мыши по необходимой программе 2. Контекстное меню 'Отправить' 3. Выбрать пункт 'Рабочий стол'"
+  - "Создать ярлык файла (Вариант 1): 1. Перетащить файл на рабочий стол 2. Выбрать в появившемся меню 'Создать ярлык'"
+  - "Создать ярлык файла (Вариант 2): 1. Правая кнопка мыши по необходимому файлу 2. Контекстное меню 'Отправить' 3. Выбрать пункт 'Рабочий стол'"
+
+setup:
+  # Создаём директорию Desktop если её нет
+  directories:
+    - "/root/Desktop"
+    - "/root/Downloads"
+  # Копируем файл photo.jpg из папки миссии copy_file
+  files:
+    - path: "/root/Downloads/photo.jpg"
+      source: "../copy_file/photo.jpg"  # Копируем из другой миссии
+      mode: "644"
 
 checks:
-  - name: "Ярлык создан"
+  - name: "Ярлык терминала создан"
     type: "file_exists"
-    path: "/home/user/Desktop/Терминал.desktop"
-    points: 100
+    path: "/root/Desktop/fly-term.desktop"
+    file_type: "file"
+    points: 30
+  - name: "Ярлык терминала содержит правильный путь"
+    type: "file_content"
+    path: "/root/Desktop/fly-term.desktop"
+    operator: "contains"
+    expected: "Exec=fly-term"
+    points: 20
+  - name: "Ярлык файла создан"
+    type: "file_exists"
+    path: "/root/Desktop/photo.jpg.desktop"
+    file_type: "file"
+    points: 30
+  - name: "Ярлык файла содержит правильный путь"
+    type: "file_content"
+    path: "/root/Desktop/photo.jpg.desktop"
+    operator: "contains"
+    expected: "/root/Downloads/photo.jpg"
+    points: 20
 

@@ -1,0 +1,45 @@
+name: "Переименуйте файл"
+description: "В каталоге «Документы» есть файл notes.txt. Переименуйте его через файловый менеджер в notes_final.txt"
+level: "A"
+difficulty: 1
+estimated_time: 3
+
+objectives:
+  - "Открыть файловый менеджер"
+  - "Найти файл notes.txt в папке Документы"
+  - "Переименовать файл в notes_final.txt"
+
+hints:
+  - "Файловый менеджер можно открыть через Меню → Файловый менеджер"
+  - "Папка Documents (~/Documents) находится в вашей домашней директории"
+  - "Для переименования используйте правый клик → Переименовать или F2"
+  - "Или выделите файл и нажмите F2"
+
+setup:
+  # Создаём директорию Documents и файл notes.txt
+  directories:
+    - "/root/Documents"
+  files:
+    - path: "/root/Documents/notes.txt"
+      content: "Это заметки для переименования"
+      mode: "644"
+
+checks:
+  - name: "Файл переименован в notes_final.txt"
+    type: "file_exists"
+    path: "/root/Documents/notes_final.txt"
+    file_type: "file"
+    points: 50
+  - name: "Старый файл notes.txt удалён"
+    type: "command_output"
+    command: "test -f /root/Documents/notes.txt && echo 'exists' || echo 'not_found'"
+    operator: "contains"
+    expected: "not_found"
+    points: 30
+  - name: "Содержимое файла сохранено"
+    type: "file_content"
+    path: "/root/Documents/notes_final.txt"
+    operator: "contains"
+    expected: "Это заметки для переименования"
+    points: 20
+

@@ -1,0 +1,49 @@
+name: "Сделать файл исполняемым через свойства"
+description: "В «Документах» есть скрипт runme.sh. Через GUI: правой клик → Свойства → Разрешения → поставить флажок «Разрешить выполнение как программу». Затем выполните программу"
+level: "A"
+difficulty: 2
+estimated_time: 5
+
+objectives:
+  - "Найти файл runme.sh в папке Документы"
+  - "Открыть свойства файла"
+  - "Установить разрешение на выполнение"
+  - "Выполнить скрипт"
+
+hints:
+  - "Файловый менеджер можно открыть через Меню → Файловый менеджер"
+  - "Папка Documents (~/Documents) находится в вашей домашней директории"
+  - "Для открытия свойств: правый клик → Свойства → вкладка Разрешения"
+  - "Установите флажок «Разрешить выполнение как программу»"
+  - "Для выполнения дважды кликните на файл или откройте терминал и выполните: ./runme.sh"
+
+setup:
+  # Создаём директорию Documents и скрипт runme.sh
+  directories:
+    - "/root/Documents"
+  files:
+    - path: "/root/Documents/runme.sh"
+      content: |
+        #!/bin/bash
+        echo "Успех"
+      mode: "644"
+
+checks:
+  - name: "Файл runme.sh существует"
+    type: "file_exists"
+    path: "/root/Documents/runme.sh"
+    file_type: "file"
+    points: 20
+  - name: "Файл имеет бит исполнения"
+    type: "command_output"
+    command: "test -x /root/Documents/runme.sh && echo 'executable' || echo 'not_executable'"
+    operator: "contains"
+    expected: "executable"
+    points: 40
+  - name: "Скрипт выполняется и выводит 'Успех'"
+    type: "command_output"
+    command: "/root/Documents/runme.sh"
+    operator: "contains"
+    expected: "Успех"
+    points: 40
+

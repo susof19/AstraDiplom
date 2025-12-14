@@ -2,6 +2,8 @@ import { useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getMission, createSandbox, checkMission, getSandbox, stopSandbox } from '../api/missions'
 import SandboxViewer from '../components/SandboxViewer'
+import GradingResult from '../components/GradingResult'
+import HintsSection from '../components/HintsSection'
 import './MissionDetail.css'
 import { useState } from 'react'
 
@@ -9,6 +11,7 @@ function MissionDetail() {
   const { missionId } = useParams()
   const queryClient = useQueryClient()
   const [showStopWarning, setShowStopWarning] = useState(false)
+  const [gradingResult, setGradingResult] = useState(null)
 
   const { data: mission, isLoading } = useQuery({
     queryKey: ['mission', missionId],
@@ -40,7 +43,17 @@ function MissionDetail() {
   const checkMissionMutation = useMutation({
     mutationFn: () => checkMission(missionId, mission?.level),
     onSuccess: (result) => {
-      alert(`Результат: ${result.result}\nОценка: ${result.score}%`)
+      setGradingResult(result)
+      // Обновляем прогресс и список миссий после проверки
+      queryClient.invalidateQueries(['progress'])
+      queryClient.invalidateQueries(['missions'])
+    },
+    onError: (error) => {
+      setGradingResult({
+        result: 'failed',
+        score: 0,
+        message: error.response?.data?.detail || 'Ошибка при проверке миссии'
+      })
     }
   })
 
@@ -95,14 +108,7 @@ function MissionDetail() {
         </div>
 
         {mission.hints && mission.hints.length > 0 && (
-          <div className="hints">
-            <h2>💡 Подсказки:</h2>
-            <ul>
-              {mission.hints.map((hint, idx) => (
-                <li key={idx}>{hint}</li>
-              ))}
-            </ul>
-          </div>
+          <HintsSection hints={mission.hints} />
         )}
 
         <div className="actions">
@@ -140,6 +146,13 @@ function MissionDetail() {
           isCreating={createSandboxMutation.isLoading}
         />
       </div>
+
+      {gradingResult && (
+        <GradingResult 
+          result={gradingResult} 
+          onClose={() => setGradingResult(null)}
+        />
+      )}
     </div>
   )
 }

@@ -10,7 +10,8 @@ function Dashboard() {
   })
 
   const missionsByLevel = {
-    A: missions.filter(m => m.level === 'A')
+    A: missions.filter(m => m.level === 'A'),
+    B: missions.filter(m => m.level === 'B')
   }
 
   if (isLoading) {
@@ -30,6 +31,12 @@ function Dashboard() {
           <p>GUI-ориентированные задания для начинающих пользователей</p>
           <div className="mission-count">{missionsByLevel.A.length} миссий</div>
           <Link to="/missions?level=A" className="btn">Начать обучение</Link>
+        </div>
+        <div className="level-card">
+          <h2>Уровень B: Продвинутые пользователи</h2>
+          <p>CLI-ориентированные задания для работы с командной строкой</p>
+          <div className="mission-count">{missionsByLevel.B.length} миссий</div>
+          <Link to="/missions?level=B" className="btn">Начать обучение</Link>
         </div>
       </div>
     </div>

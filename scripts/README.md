@@ -67,7 +67,7 @@
 
 **Результат**: Образ `localhost/astra-vnc:latest` готов к использованию для дистрибутива `astra`.
 
-**Подробнее**: См. [ASTRA-VNC-SETUP.md](./ASTRA-VNC-SETUP.md)
+**Подробнее**: См. раздел "Настройка образа Astra Linux с VNC" в [docs/VNC_GUIDE.md](../docs/VNC_GUIDE.md)
 
 ---
 
@@ -380,4 +380,4 @@ docker tag localhost/astra-linux:se localhost/linux-base:astra
 - **Podman**: [docs/PODMAN_GUIDE.md](../docs/PODMAN_GUIDE.md)
 - **VNC**: [docs/VNC_GUIDE.md](../docs/VNC_GUIDE.md)
 - **Решение проблем**: [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)
-- **Настройка Astra VNC**: [ASTRA-VNC-SETUP.md](ASTRA-VNC-SETUP.md)
+- **Настройка Astra VNC**: См. раздел "Настройка образа Astra Linux с VNC" в [docs/VNC_GUIDE.md](../docs/VNC_GUIDE.md)

@@ -167,14 +167,12 @@ npm start
 - **[AUTHENTICATION.md](AUTHENTICATION.md)** - Система аутентификации и регистрации
 
 ### Установка на разных системах
-- [docs/WSL-SETUP.md](docs/WSL-SETUP.md) - Установка и запуск на WSL (Windows)
-- [docs/ASTRA_LINUX.md](docs/ASTRA_LINUX.md) - Установка на Astra Linux
-- [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows (без контейнеров)
-- [docs/SETUP.md](docs/SETUP.md) - Детальная настройка
+- [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows и WSL
+- [GETTING_STARTED.md](GETTING_STARTED.md) - Полное руководство по установке (включая Astra Linux)
 
 ### Руководства по компонентам
 - [docs/PODMAN_GUIDE.md](docs/PODMAN_GUIDE.md) - Работа с Podman и создание образов
-- [docs/VNC_GUIDE.md](docs/VNC_GUIDE.md) - VNC для GUI-миссий через браузер
+- [docs/VNC_GUIDE.md](docs/VNC_GUIDE.md) - VNC для GUI-миссий через браузер (включая настройку Astra Linux VNC)
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Решение проблем (Backend, БД, образы, VNC, сеть)
 
 ### Техническая документация
