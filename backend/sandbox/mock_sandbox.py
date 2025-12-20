@@ -4,7 +4,7 @@ import random
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from backend.sandbox.container import ContainerSandbox
+from backend.sandbox.container import ContainerSandbox, _get_host_ip
 
 logger = __import__("logging").getLogger(__name__)
 
@@ -143,7 +143,9 @@ class MockSandbox(ContainerSandbox):
             return None
         from backend.config import settings
         password = settings.VNC_PASSWORD
-        return f"http://localhost:{self.novnc_port}/vnc.html?password={password}&autoconnect=true&resize=scale"
+        # Всегда используем localhost - frontend заменит на правильный hostname
+        host = "localhost"
+        return f"http://{host}:{self.novnc_port}/vnc.html?password={password}&autoconnect=true&resize=scale"
     
     async def wait_for_vnc(self, timeout: int = 60) -> bool:
         """Ожидание готовности VNC сервера (mock - всегда готов)"""

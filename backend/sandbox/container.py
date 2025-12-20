@@ -4,6 +4,7 @@ import json
 import subprocess
 import os
 import shutil
+import socket
 from pathlib import Path
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -12,6 +13,22 @@ import logging
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _get_host_ip() -> str:
+    """Получить IP адрес хоста для доступа из локальной сети"""
+    try:
+        # Пробуем подключиться к внешнему адресу, чтобы определить локальный IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Не отправляем данные, просто определяем локальный IP
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        # Если не удалось определить IP, используем localhost
+        # Frontend сам определит правильный адрес при подключении
+        return "localhost"
 
 
 def _detect_container_command() -> str:
@@ -379,10 +396,15 @@ class ContainerSandbox:
         # Для astra-vnc пробуем сначала /vnc.html, если не работает - /
         novnc_path = "/vnc.html" if is_astra_vnc else "/vnc.html"
         
+        # Определяем хост для VNC URL
+        # Всегда используем localhost - frontend заменит на правильный IP/hostname
+        # при подключении с другой машины в локальной сети
+        host = "localhost"
+        
         # noVNC поддерживает автоматическую передачу пароля через параметр password
         # Пароль будет автоматически передан при подключении к VNC серверу
         password = settings.VNC_PASSWORD
-        return f"http://localhost:{self.novnc_port}{novnc_path}?password={password}&autoconnect=true&resize=scale"
+        return f"http://{host}:{self.novnc_port}{novnc_path}?password={password}&autoconnect=true&resize=scale"
     
     async def wait_for_vnc(self, timeout: int = 60) -> bool:
         """Ожидание готовности VNC сервера"""

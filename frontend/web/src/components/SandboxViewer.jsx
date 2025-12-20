@@ -43,6 +43,14 @@ const LOADING_STAGES = {
   }
 }
 
+// Функция для замены localhost на текущий hostname (для доступа из локальной сети)
+function replaceLocalhostWithHostname(url) {
+  if (!url) return url
+  // Заменяем localhost или 127.0.0.1 на hostname текущего окна
+  // Это позволяет подключаться к VNC с других машин в локальной сети
+  return url.replace(/localhost|127\.0\.0\.1/, window.location.hostname)
+}
+
 function SandboxViewer({ missionId, level, isCreating = false }) {
   const iframeRef = useRef(null)
   const [vncReady, setVncReady] = useState(false)
@@ -281,7 +289,7 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
             <iframe
               ref={iframeRef}
               key={sandbox.vnc_url} // Ключ для пересоздания iframe при изменении URL
-              src={sandbox.vnc_url}
+              src={replaceLocalhostWithHostname(sandbox.vnc_url)}
               title="Linux Desktop"
               className="vnc-iframe"
               allow="clipboard-read; clipboard-write"
@@ -333,7 +341,7 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
               💡 Совет: Используйте полноэкранный режим для лучшего опыта
             </p>
             <a 
-              href={sandbox.vnc_url} 
+              href={replaceLocalhostWithHostname(sandbox.vnc_url)} 
               target="_blank" 
               rel="noopener noreferrer"
               className="external-link"

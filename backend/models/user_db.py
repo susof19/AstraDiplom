@@ -35,6 +35,7 @@ class User:
         self.created_at: Optional[datetime] = None
         self.last_login: Optional[datetime] = None
         self.id: Optional[int] = None
+        self.is_admin: int = 0  # 0 = обычный пользователь, 1 = администратор
         
     def _get_db(self) -> Session:
         """Получить сессию БД"""
@@ -57,6 +58,7 @@ class User:
             self.secret_code_hash = user_model.secret_code_hash
             self.created_at = user_model.created_at
             self.last_login = user_model.last_login
+            self.is_admin = getattr(user_model, 'is_admin', 0)  # Поддержка старых записей без поля is_admin
             return True
         except Exception as e:
             print(f"Ошибка загрузки пользователя {self.username}: {e}")
@@ -76,6 +78,7 @@ class User:
                     user_model.password_hash = self.password_hash
                     user_model.secret_code_hash = self.secret_code_hash
                     user_model.last_login = self.last_login
+                    user_model.is_admin = self.is_admin
             else:
                 # Создание нового пользователя
                 user_model = UserModel(
@@ -83,7 +86,8 @@ class User:
                     password_hash=self.password_hash,
                     secret_code_hash=self.secret_code_hash,
                     created_at=self.created_at or datetime.utcnow(),
-                    last_login=self.last_login
+                    last_login=self.last_login,
+                    is_admin=self.is_admin
                 )
                 session.add(user_model)
             

@@ -168,6 +168,7 @@ npm start
 
 ### Установка на разных системах
 - [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows и WSL
+- [docs/WSL_NETWORK_ACCESS.md](docs/WSL_NETWORK_ACCESS.md) - Доступ к WSL2 из локальной сети
 - [GETTING_STARTED.md](GETTING_STARTED.md) - Полное руководство по установке (включая Astra Linux)
 
 ### Руководства по компонентам

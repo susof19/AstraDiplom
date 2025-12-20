@@ -1,6 +1,6 @@
 import './GradingResult.css'
 
-function GradingResult({ result, onClose }) {
+function GradingResult({ result, currentMissionId, nextMission, missionLevel, onClose, onNextMission, onRetryMission }) {
   if (!result) return null
 
   const { 
@@ -115,9 +115,45 @@ function GradingResult({ result, onClose }) {
         </div>
 
         <div className="grading-footer">
+          <div className="grading-actions">
+            {onRetryMission && (
+              <button 
+                className="btn btn-secondary" 
+                onClick={onRetryMission}
+              >
+                🔄 Попробовать еще раз
+              </button>
+            )}
+            {onNextMission && nextMission && (
+              <button 
+                className="btn btn-primary" 
+                onClick={onNextMission}
+              >
+                ➡️ Следующее задание
+              </button>
+            )}
+            {!nextMission && mission_passed && (
+              <button 
+                className="btn btn-primary" 
+                onClick={() => {
+                  onClose?.()
+                  // Если это последнее задание, можно вернуться к списку
+                  if (missionLevel) {
+                    window.location.href = `/missions?level=${missionLevel}`
+                  } else {
+                    window.location.href = '/missions'
+                  }
+                }}
+              >
+                📋 Вернуться к списку миссий
+              </button>
+            )}
+            {!nextMission && !mission_passed && (
           <button className="btn btn-primary" onClick={onClose}>
             Закрыть
           </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

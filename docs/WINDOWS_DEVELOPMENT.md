@@ -98,6 +98,78 @@ docker info
 - Порт 3000 (Frontend) и 8000 (Backend) пробрасываются автоматически
 - Откройте браузер Windows и перейдите на http://localhost:3000
 
+**Доступ из локальной сети**:
+
+WSL2 использует виртуальную сеть, поэтому для доступа из локальной сети требуется настройка. Есть два варианта:
+
+### Вариант 1: Mirrored Networking Mode (Рекомендуется)
+
+Это современное решение, которое делает WSL2 доступным из локальной сети без необходимости настройки port forwarding.
+
+1. **Настройка (один раз)**:
+   ```powershell
+   # Запустите PowerShell от имени администратора
+   PowerShell -ExecutionPolicy Bypass -File scripts/setup-wsl-mirrored-networking.ps1
+   ```
+
+2. **Перезапустите WSL2**:
+   ```powershell
+   wsl --shutdown
+   # Затем откройте WSL снова
+   ```
+
+3. **Запустите приложение**:
+   ```bash
+   ./start-demo-wsl.sh
+   ```
+
+4. **Подключитесь с других машин**:
+   - Узнайте IP адрес Windows хоста: `ipconfig | findstr IPv4` (в PowerShell)
+   - Используйте: `http://<IP_АДРЕС_WINDOWS>:3000` для Frontend
+
+### Вариант 2: Port Forwarding
+
+Альтернативный вариант с ручной настройкой port forwarding.
+
+1. **Настройка (требуется после каждого перезапуска WSL, если IP изменился)**:
+   ```powershell
+   # Запустите PowerShell от имени администратора
+   PowerShell -ExecutionPolicy Bypass -File scripts/setup-wsl-port-forwarding.ps1
+   ```
+
+2. **Запустите приложение**:
+   ```bash
+   ./start-demo-wsl.sh
+   ```
+
+3. **Подключитесь с других машин**:
+   - Используйте IP адрес Windows хоста (указан в выводе скрипта)
+
+**Примечание**: Оба скрипта автоматически настраивают Windows Firewall. Если используете port forwarding, запускайте скрипт после каждого перезапуска WSL, если IP адрес изменился.
+
+### Доступ из локальной сети
+
+**Важно**: WSL2 требует специальной настройки для доступа из локальной сети.
+
+📖 **Подробное руководство**: [WSL_NETWORK_ACCESS.md](WSL_NETWORK_ACCESS.md)
+
+**Краткая инструкция:**
+
+1. **Рекомендуемый способ (Mirrored Networking Mode)**:
+   ```powershell
+   # PowerShell от имени администратора
+   PowerShell -ExecutionPolicy Bypass -File scripts/setup-wsl-mirrored-networking.ps1
+   wsl --shutdown  # Перезапустите WSL
+   ```
+
+2. **Альтернативный способ (Port Forwarding)**:
+   ```powershell
+   # PowerShell от имени администратора
+   PowerShell -ExecutionPolicy Bypass -File scripts/setup-wsl-port-forwarding.ps1
+   ```
+
+3. Запустите приложение и используйте IP адрес Windows хоста для подключения.
+
 ### Устранение неполадок в WSL
 
 **PostgreSQL не запускается**:
@@ -234,10 +306,10 @@ sudo apt-get install -y python3 python3-venv python3-pip nodejs npm postgresql p
 # Запуск PostgreSQL
 sudo service postgresql start
 
-# Создание пользователя и базы данных
+# Создание пользователя и базы данных с кодировкой UTF-8
 sudo -u postgres psql << EOF
 CREATE USER trainer_user WITH PASSWORD 'trainer_password';
-CREATE DATABASE trainer_db OWNER trainer_user;
+CREATE DATABASE trainer_db OWNER trainer_user ENCODING 'UTF8' LC_COLLATE='C' LC_CTYPE='C' TEMPLATE template0;
 GRANT ALL PRIVILEGES ON DATABASE trainer_db TO trainer_user;
 \q
 EOF

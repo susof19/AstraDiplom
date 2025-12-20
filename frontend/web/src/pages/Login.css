@@ -54,11 +54,19 @@
   border-radius: 6px;
   font-size: 1em;
   transition: border-color 0.3s;
+  background: white;
+  color: #333;
 }
 
 .form-group input:focus {
   outline: none;
   border-color: #667eea;
+  background: white;
+  color: #333;
+}
+
+.form-group input::placeholder {
+  color: #999;
 }
 
 .form-group small {

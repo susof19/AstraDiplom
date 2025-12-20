@@ -1,4 +1,5 @@
 """Конфигурация приложения"""
+import os
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
@@ -41,7 +42,16 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api/v1"
     
     # Безопасность
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    # Разрешаем подключения с localhost и локальной сети
+    # Для доступа с других машин в локальной сети добавьте их IP адреса
+    # Можно переопределить через переменную окружения ALLOWED_ORIGINS (JSON массив)
+    # или добавить дополнительные через ADDITIONAL_ORIGINS (разделенные запятой)
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ]
     JWT_SECRET_KEY: str = "IHateItAll"  # В продакшене через .env
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_DAYS: int = 7
@@ -85,4 +95,12 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Добавляем дополнительные origins из переменной окружения после создания экземпляра
+additional_origins = os.getenv("ADDITIONAL_ORIGINS", "")
+if additional_origins:
+    for origin in additional_origins.split(","):
+        origin = origin.strip()
+        if origin and origin not in settings.ALLOWED_ORIGINS:
+            settings.ALLOWED_ORIGINS.append(origin)
 

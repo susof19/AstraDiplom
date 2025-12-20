@@ -36,6 +36,14 @@ async def check_mission(
     
     result = await Grader.grade_mission(mission_id, level, sandbox)
     
+    # Автоматически останавливаем песочницу после проверки
+    try:
+        logger.info(f"Остановка песочницы после проверки миссии {mission_id}")
+        await sandbox_manager.remove_sandbox(mission_id)
+        logger.info(f"Песочница {mission_id} остановлена")
+    except Exception as e:
+        logger.warning(f"Не удалось остановить песочницу после проверки: {e}")
+    
     # Сохраняем прогресс, если миссия выполнена (score >= 70%)
     score = result.get("score", 0)
     result_status = result.get("result", "failed")

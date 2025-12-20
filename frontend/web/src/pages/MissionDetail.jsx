@@ -1,14 +1,15 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getMission, createSandbox, checkMission, getSandbox, stopSandbox } from '../api/missions'
+import { getMission, createSandbox, checkMission, getSandbox, stopSandbox, getMissions } from '../api/missions'
 import SandboxViewer from '../components/SandboxViewer'
 import GradingResult from '../components/GradingResult'
 import HintsSection from '../components/HintsSection'
 import './MissionDetail.css'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 
 function MissionDetail() {
   const { missionId } = useParams()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [showStopWarning, setShowStopWarning] = useState(false)
   const [gradingResult, setGradingResult] = useState(null)
@@ -17,6 +18,23 @@ function MissionDetail() {
     queryKey: ['mission', missionId],
     queryFn: () => getMission(missionId)
   })
+
+  // Загружаем все миссии для навигации
+  const { data: allMissions = [] } = useQuery({
+    queryKey: ['missions', mission?.level],
+    queryFn: () => getMissions(mission?.level),
+    enabled: !!mission?.level
+  })
+
+  // Находим текущую и следующую миссию
+  const { currentIndex, nextMission } = useMemo(() => {
+    if (!mission || allMissions.length === 0) {
+      return { currentIndex: -1, nextMission: null }
+    }
+    const index = allMissions.findIndex(m => m.id === missionId)
+    const next = index >= 0 && index < allMissions.length - 1 ? allMissions[index + 1] : null
+    return { currentIndex: index, nextMission: next }
+  }, [missionId, mission, allMissions])
 
   const { data: sandbox } = useQuery({
     queryKey: ['sandbox', missionId],
@@ -47,6 +65,8 @@ function MissionDetail() {
       // Обновляем прогресс и список миссий после проверки
       queryClient.invalidateQueries(['progress'])
       queryClient.invalidateQueries(['missions'])
+      // Обновляем статус песочницы (она должна быть остановлена)
+      queryClient.invalidateQueries(['sandbox', missionId])
     },
     onError: (error) => {
       setGradingResult({
@@ -56,6 +76,21 @@ function MissionDetail() {
       })
     }
   })
+
+  const handleNextMission = () => {
+    setGradingResult(null)
+    if (nextMission) {
+      navigate(`/missions/${nextMission.id}`)
+    } else {
+      navigate(`/missions?level=${mission?.level}`)
+    }
+  }
+
+  const handleRetryMission = () => {
+    setGradingResult(null)
+    // Песочница уже остановлена, нужно просто очистить результат
+    // Пользователь может запустить песочницу заново кнопкой "Запустить песочницу"
+  }
 
   const handleStopSandbox = () => {
     if (window.confirm(
@@ -150,7 +185,12 @@ function MissionDetail() {
       {gradingResult && (
         <GradingResult 
           result={gradingResult} 
+          currentMissionId={missionId}
+          nextMission={nextMission}
+          missionLevel={mission?.level}
           onClose={() => setGradingResult(null)}
+          onNextMission={handleNextMission}
+          onRetryMission={handleRetryMission}
         />
       )}
     </div>

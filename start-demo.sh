@@ -156,10 +156,36 @@ else
 fi
 echo ""
 
+# Получение IP адресов для доступа из локальной сети
+echo "🌐 Определение сетевых адресов..."
+HOST_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "")
+
+# Если не удалось получить IP, пробуем альтернативные методы
+if [ -z "$HOST_IP" ]; then
+    HOST_IP=$(ip addr show | grep -oP 'inet \K[\d.]+' | grep -v '127.0.0.1' | head -1 || echo "")
+fi
+
+if [ -z "$HOST_IP" ]; then
+    HOST_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7; exit}' || echo "")
+fi
+
+if [ -n "$HOST_IP" ]; then
+    echo "   Host IP: $HOST_IP"
+else
+    echo "   ⚠️  Не удалось определить IP адрес"
+fi
+echo ""
+
+# Формируем список дополнительных origins для CORS
+ADDITIONAL_ORIGINS_LIST=""
+if [ -n "$HOST_IP" ]; then
+    ADDITIONAL_ORIGINS_LIST="http://${HOST_IP}:3000"
+fi
+
 # Остановка старых процессов
 echo "🧹 Очистка старых процессов..."
 pkill -f 'python.*run.py' 2>/dev/null || true
-pkill -f 'npm start' 2>/dev/null || true
+pkill -f 'uvicorn.*main:app' 2>/dev/null || true
 pkill -f 'react-scripts start' 2>/dev/null || true
 sleep 2
 echo "✅ Очистка завершена"
@@ -169,6 +195,13 @@ echo ""
 echo "🔧 Запуск Backend..."
 cd backend
 source venv/bin/activate
+
+# Устанавливаем переменную окружения для дополнительных origins
+if [ -n "$ADDITIONAL_ORIGINS_LIST" ]; then
+    export ADDITIONAL_ORIGINS="$ADDITIONAL_ORIGINS_LIST"
+    echo "   Настроены дополнительные CORS origins: $ADDITIONAL_ORIGINS_LIST"
+fi
+
 nohup python run.py > ../backend.log 2>&1 &
 BACKEND_PID=$!
 echo "✅ Backend запущен (PID родительского процесса: $BACKEND_PID)"
@@ -185,7 +218,7 @@ cd ..
 # Ожидание запуска Backend
 echo "⏳ Ожидание запуска Backend..."
 for i in {1..30}; do
-    if curl -s http://localhost:8000/api/v1/missions > /dev/null 2>&1; then
+    if curl -s http://localhost:8000/health > /dev/null 2>&1; then
         echo "✅ Backend готов"
         break
     fi
@@ -199,9 +232,13 @@ echo ""
 # Запуск Frontend
 echo "🌐 Запуск Frontend..."
 cd frontend/web
+# Настраиваем frontend на прослушивание всех интерфейсов (0.0.0.0)
+# Это позволит подключаться с других машин в локальной сети
+# Настройки находятся в .env файле (HOST=0.0.0.0)
 BROWSER=none nohup npm start > ../../frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo "✅ Frontend запущен (PID родительского процесса: $FRONTEND_PID)"
+echo "   Frontend слушает на всех интерфейсах (0.0.0.0:3000)"
 
 # Ждем немного и находим реальный PID процесса react-scripts
 sleep 3
@@ -214,26 +251,72 @@ cd ../..
 
 # Ожидание запуска Frontend
 echo "⏳ Ожидание запуска Frontend..."
-for i in {1..60}; do
+for i in {1..68}; do
     if curl -s http://localhost:3000 > /dev/null 2>&1; then
         echo "✅ Frontend готов"
         break
     fi
-    if [ $i -eq 60 ]; then
+    if [ $i -eq 45 ]; then
         echo "⚠️  Frontend не отвечает, проверьте логи: tail -f frontend.log"
     fi
     sleep 1
 done
 echo ""
 
+# Диагностика сетевых подключений
+echo "🔍 Диагностика сетевых подключений..."
+echo ""
+
+# Проверка прослушивания портов
+echo "   Проверка портов:"
+if command -v netstat &> /dev/null; then
+    LISTENING_PORTS=$(netstat -tuln 2>/dev/null | grep -E ":(3000|8000)" | grep "0.0.0.0" || echo "")
+    if [ -n "$LISTENING_PORTS" ]; then
+        echo "   ✅ Порты слушают на 0.0.0.0:"
+        echo "$LISTENING_PORTS" | while read line; do
+            echo "      $line"
+        done
+    else
+        echo "   ⚠️  Порты могут не слушать на всех интерфейсах"
+        echo "   💡 Проверьте: netstat -tuln | grep -E ':(3000|8000)'"
+    fi
+elif command -v ss &> /dev/null; then
+    LISTENING_PORTS=$(ss -tuln 2>/dev/null | grep -E ":(3000|8000)" | grep "0.0.0.0" || echo "")
+    if [ -n "$LISTENING_PORTS" ]; then
+        echo "   ✅ Порты слушают на 0.0.0.0:"
+        echo "$LISTENING_PORTS" | while read line; do
+            echo "      $line"
+        done
+    else
+        echo "   ⚠️  Порты могут не слушать на всех интерфейсах"
+        echo "   💡 Проверьте: ss -tuln | grep -E ':(3000|8000)'"
+    fi
+else
+    echo "   ⚠️  netstat/ss не найдены, пропускаем проверку портов"
+fi
+echo ""
+
 echo "=========================================================="
 echo "✅ Система запущена и готова к демонстрации!"
 echo ""
-echo "📍 Адреса:"
+echo "📋 Сервисы (локальный доступ):"
 echo "   Frontend: http://localhost:3000"
 echo "   Backend:  http://localhost:8000"
 echo "   API Docs: http://localhost:8000/docs"
 echo ""
+
+# Выводим информацию о доступе из локальной сети
+if [ -n "$HOST_IP" ]; then
+    echo "🌐 Доступ из локальной сети:"
+    echo "   Frontend: http://${HOST_IP}:3000"
+    echo "   Backend:  http://${HOST_IP}:8000"
+    echo ""
+    echo "💡 Убедитесь, что:"
+    echo "   1. Firewall разрешает подключения на портах 3000 и 8000"
+    echo "   2. Оба устройства в одной локальной сети"
+    echo ""
+fi
+
 echo "📋 Логи:"
 echo "   Backend:  tail -f backend.log"
 echo "   Frontend: tail -f frontend.log"

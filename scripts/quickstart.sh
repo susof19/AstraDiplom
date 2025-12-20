@@ -342,8 +342,8 @@ BEGIN
 END
 $$;
 
--- Создание базы данных (если не существует)
-SELECT 'CREATE DATABASE trainer_db OWNER trainer_user'
+-- Создание базы данных (если не существует) с кодировкой UTF-8
+SELECT 'CREATE DATABASE trainer_db OWNER trainer_user ENCODING ''UTF8'' LC_COLLATE=''C'' LC_CTYPE=''C'' TEMPLATE template0'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'trainer_db')\gexec
 
 -- Предоставление прав

@@ -192,6 +192,37 @@ else
 fi
 echo ""
 
+# Получение IP адресов для доступа из локальной сети
+echo "🌐 Определение сетевых адресов..."
+WSL_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "")
+WINDOWS_HOST_IP=$(cat /etc/resolv.conf 2>/dev/null | grep nameserver | awk '{print $2}' | head -1 || echo "")
+
+# Если не удалось получить IP, пробуем альтернативные методы
+if [ -z "$WSL_IP" ]; then
+    WSL_IP=$(ip addr show | grep -oP 'inet \K[\d.]+' | grep -v '127.0.0.1' | head -1 || echo "")
+fi
+
+if [ -z "$WINDOWS_HOST_IP" ]; then
+    WINDOWS_HOST_IP=$(ip route show | grep -i default | awk '{print $3}' | head -1 || echo "")
+fi
+
+echo "   WSL IP: $WSL_IP"
+echo "   Windows Host IP: $WINDOWS_HOST_IP"
+echo ""
+
+# Формируем список дополнительных origins для CORS
+ADDITIONAL_ORIGINS_LIST=""
+if [ -n "$WSL_IP" ]; then
+    ADDITIONAL_ORIGINS_LIST="http://${WSL_IP}:3000"
+fi
+if [ -n "$WINDOWS_HOST_IP" ] && [ "$WINDOWS_HOST_IP" != "$WSL_IP" ]; then
+    if [ -n "$ADDITIONAL_ORIGINS_LIST" ]; then
+        ADDITIONAL_ORIGINS_LIST="${ADDITIONAL_ORIGINS_LIST},http://${WINDOWS_HOST_IP}:3000"
+    else
+        ADDITIONAL_ORIGINS_LIST="http://${WINDOWS_HOST_IP}:3000"
+    fi
+fi
+
 # Остановка старого Backend (если запущен) для применения новой конфигурации
 echo "🧹 Очистка старых процессов..."
 pkill -f 'python.*run.py' 2>/dev/null || true
@@ -211,6 +242,13 @@ if [ ! -d "venv" ]; then
 fi
 
 source venv/bin/activate
+
+# Устанавливаем переменную окружения для дополнительных origins
+if [ -n "$ADDITIONAL_ORIGINS_LIST" ]; then
+    export ADDITIONAL_ORIGINS="$ADDITIONAL_ORIGINS_LIST"
+    echo "   Настроены дополнительные CORS origins: $ADDITIONAL_ORIGINS_LIST"
+fi
+
 nohup python run.py > ../backend.log 2>&1 &
 BACKEND_PID=$!
 echo "✅ Backend запущен (PID родительского процесса: $BACKEND_PID)"
@@ -241,9 +279,13 @@ echo ""
 # Запуск Frontend
 echo "🌐 Запуск Frontend..."
 cd "$PROJECT_ROOT/frontend/web"
+# Настраиваем frontend на прослушивание всех интерфейсов (0.0.0.0)
+# Это позволит подключаться с других машин в локальной сети
+# Настройки находятся в .env файле (HOST=0.0.0.0)
 BROWSER=none nohup npm start > ../../frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo "✅ Frontend запущен (PID родительского процесса: $FRONTEND_PID)"
+echo "   Frontend слушает на всех интерфейсах (0.0.0.0:3000)"
 
 # Ждем немного и находим реальный PID процесса react-scripts
 sleep 3
@@ -256,17 +298,115 @@ cd "$PROJECT_ROOT"
 
 # Ожидание запуска Frontend
 echo "⏳ Ожидание запуска Frontend..."
-sleep 5
+for i in {1..68}; do
+    if curl -s http://localhost:3000 > /dev/null 2>&1; then
+        echo "✅ Frontend готов"
+        break
+    fi
+    if [ $i -eq 45 ]; then
+        echo "⚠️  Frontend не отвечает, проверьте логи: tail -f frontend.log"
+    fi
+    sleep 1
+done
+echo ""
+
+# Диагностика сетевых подключений
+echo "🔍 Диагностика сетевых подключений..."
+echo ""
+
+# Проверка прослушивания портов
+echo "   Проверка портов:"
+if command -v netstat &> /dev/null; then
+    BACKEND_LISTENING=$(netstat -tuln 2>/dev/null | grep -E ":(3000|8000)" | grep "0.0.0.0" || echo "")
+    if [ -n "$BACKEND_LISTENING" ]; then
+        echo "   ✅ Порты слушают на 0.0.0.0:"
+        echo "$BACKEND_LISTENING" | while read line; do
+            echo "      $line"
+        done
+    else
+        echo "   ⚠️  Порты могут не слушать на всех интерфейсах"
+        echo "   💡 Проверьте: netstat -tuln | grep -E ':(3000|8000)'"
+    fi
+elif command -v ss &> /dev/null; then
+    BACKEND_LISTENING=$(ss -tuln 2>/dev/null | grep -E ":(3000|8000)" | grep "0.0.0.0" || echo "")
+    if [ -n "$BACKEND_LISTENING" ]; then
+        echo "   ✅ Порты слушают на 0.0.0.0:"
+        echo "$BACKEND_LISTENING" | while read line; do
+            echo "      $line"
+        done
+    else
+        echo "   ⚠️  Порты могут не слушать на всех интерфейсах"
+        echo "   💡 Проверьте: ss -tuln | grep -E ':(3000|8000)'"
+    fi
+else
+    echo "   ⚠️  netstat/ss не найдены, пропускаем проверку портов"
+fi
+echo ""
+
+# Получение IP адреса Windows хоста для отображения
+WINDOWS_HOST_IP_FOR_DISPLAY=""
+if [ -n "$WINDOWS_HOST_IP" ]; then
+    WINDOWS_HOST_IP_FOR_DISPLAY="$WINDOWS_HOST_IP"
+else
+    # Пробуем получить через ipconfig в WSL
+    WINDOWS_HOST_IP_FOR_DISPLAY=$(cat /etc/resolv.conf 2>/dev/null | grep nameserver | awk '{print $2}' | head -1 || echo "")
+fi
+
+# Проверка port forwarding (если доступен wsl.exe)
+if command -v wsl.exe &> /dev/null 2>&1 || [ -n "$(which wsl.exe 2>/dev/null)" ]; then
+    echo "   Проверка port forwarding в Windows..."
+    echo "   💡 Для доступа из локальной сети выполните в PowerShell (от имени администратора):"
+    echo "      PowerShell -ExecutionPolicy Bypass -File scripts/setup-wsl-port-forwarding.ps1"
+    echo "   Или используйте mirrored networking mode (рекомендуется):"
+    echo "      PowerShell -ExecutionPolicy Bypass -File scripts/setup-wsl-mirrored-networking.ps1"
+    echo ""
+fi
 
 echo ""
 echo "=================================================="
 echo "✅ Демонстрация запущена!"
 echo ""
-echo "📋 Сервисы:"
+echo "📋 Сервисы (локальный доступ):"
 echo "   Frontend: http://localhost:3000"
 echo "   Backend:  http://localhost:8000"
 echo "   API Docs: http://localhost:8000/docs"
 echo ""
+
+# Выводим информацию о доступе из локальной сети
+echo "🌐 Доступ из локальной сети:"
+echo ""
+echo "⚠️  ВАЖНО: WSL2 требует настройки port forwarding для доступа из локальной сети!"
+echo ""
+echo "📋 Вариант 1 (Рекомендуется): Mirrored Networking Mode"
+echo "   Выполните в PowerShell от имени администратора:"
+echo "   PowerShell -ExecutionPolicy Bypass -File scripts/setup-wsl-mirrored-networking.ps1"
+echo "   Затем перезапустите WSL: wsl --shutdown"
+echo ""
+echo "📋 Вариант 2: Port Forwarding"
+echo "   Выполните в PowerShell от имени администратора:"
+echo "   PowerShell -ExecutionPolicy Bypass -File scripts/setup-wsl-port-forwarding.ps1"
+echo ""
+
+# Получаем IP адрес Windows хоста для отображения
+if [ -n "$WINDOWS_HOST_IP_FOR_DISPLAY" ]; then
+    echo "💡 После настройки port forwarding используйте IP адрес Windows хоста:"
+    echo "   Frontend: http://${WINDOWS_HOST_IP_FOR_DISPLAY}:3000"
+    echo "   Backend:  http://${WINDOWS_HOST_IP_FOR_DISPLAY}:8000"
+    echo ""
+    echo "   Узнать IP адрес Windows хоста:"
+    echo "   В PowerShell: ipconfig | findstr IPv4"
+    echo "   Или в WSL: cat /etc/resolv.conf | grep nameserver | awk '{print \$2}'"
+else
+    echo "💡 После настройки port forwarding используйте IP адрес Windows хоста"
+    echo "   Узнать IP адрес: ipconfig | findstr IPv4 (в PowerShell)"
+fi
+echo ""
+echo "🔧 Дополнительно убедитесь, что:"
+echo "   1. Windows Firewall разрешает подключения (скрипт настроит автоматически)"
+echo "   2. Оба устройства в одной локальной сети"
+echo "   3. Порты 3000 и 8000 не заняты другими приложениями"
+echo ""
+
 echo "📝 Логи:"
 echo "   Backend:  tail -f backend.log"
 echo "   Frontend: tail -f frontend.log"

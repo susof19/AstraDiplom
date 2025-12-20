@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 import MissionList from './pages/MissionList'
 import MissionDetail from './pages/MissionDetail'
 import Dashboard from './pages/Dashboard'
+import AdminPanel from './pages/AdminPanel'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import RecoverPassword from './pages/RecoverPassword'
@@ -46,6 +47,14 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <MissionDetail />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <PrivateRoute>
+              <AdminPanel />
             </PrivateRoute>
           }
         />

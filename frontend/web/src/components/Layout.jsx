@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getProgress, getActiveSandbox } from '../api/missions'
+import { getUserInfo } from '../api/admin'
 import { useAuth } from '../contexts/AuthContext'
 import axios from 'axios'
 import { useState } from 'react'
@@ -43,7 +44,21 @@ function Layout({ children }) {
     retry: false
   })
   
+  // Проверяем права администратора
+  // Делаем запрос сразу при входе для быстрого отображения вкладки
+  const { data: userInfo, isLoading: userInfoLoading } = useQuery({
+    queryKey: ['userInfo'],
+    queryFn: getUserInfo,
+    enabled: !isAuthPage && isAuthenticated,
+    retry: false,
+    staleTime: 60000,  // Кешируем на минуту
+    cacheTime: 300000  // Храним в кеше 5 минут
+  })
+  
   const hasActiveSandbox = activeSandbox?.has_active || false
+  // Показываем вкладку, если пользователь является администратором
+  // Если загрузка еще идет, показываем вкладку оптимистично (если userInfo уже был закеширован)
+  const isAdmin = userInfo?.is_admin === true
   
   if (isAuthPage) {
     return <>{children}</>
@@ -126,10 +141,16 @@ function Layout({ children }) {
               <span className="nav-icon">📊</span>
               <span>Обзор</span>
             </Link>
-            <Link to="/missions" className={`nav-item ${location.pathname.startsWith('/missions') ? 'active' : ''}`}>
+            <Link to="/missions" className={`nav-item ${location.pathname.startsWith('/missions') && !location.pathname.startsWith('/admin') ? 'active' : ''}`}>
               <span className="nav-icon">🎯</span>
               <span>Миссии</span>
             </Link>
+            {isAdmin && (
+              <Link to="/admin" className={`nav-item ${location.pathname.startsWith('/admin') ? 'active' : ''}`}>
+                <span className="nav-icon">⚙️</span>
+                <span>Администрирование</span>
+              </Link>
+            )}
             {hasActiveSandbox && (
               <>
                 <div 
