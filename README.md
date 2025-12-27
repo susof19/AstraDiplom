@@ -71,11 +71,9 @@ chmod +x scripts/quickstart.sh
 
 ## 🔒 Безопасность
 
-- Rootless контейнеры (Podman) - соответствует требованиям Astra Linux
-- Изоляция через overlayfs
-- Поддержка меток безопасности (МКЦ) в Astra Linux
+- Rootless контейнеры (Podman)
 - Минимальные привилегии
-- Совместимость с режимом изоляции Docker в Astra Linux
+- Совместимость с режимом изоляции Docker 
 
 ## 📚 Документация
 
