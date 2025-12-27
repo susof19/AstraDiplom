@@ -33,7 +33,7 @@ astra-trainer/
 
 ## 🚀 Быстрый старт
 
-### Автоматическая установка (Debian/Ubuntu/Astra Linux)
+### Автоматическая установка (Linux)
 
 ```bash
 cd AstraDiplom
@@ -43,100 +43,18 @@ chmod +x scripts/quickstart.sh
 
 Скрипт автоматически определит ваш дистрибутив и установит все зависимости.
 
-### Ручная установка
-
-```bash
-# 1. Создать образы
-cd scripts
-./create-astra-image.sh          # Базовый (CLI)
-./create-astra-image.sh --vnc    # С VNC (GUI)
-
-# 2. Установить зависимости
-cd ../backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
-cd ../frontend/web && npm install
-
-# 3. Запустить
-cd ../../backend && python run.py  # Терминал 1
-cd ../frontend/web && npm start     # Терминал 2
-```
-
-**Подробнее**: [GETTING_STARTED.md](GETTING_STARTED.md)
-
-### Для других Linux дистрибутивов
-
-См. [QUICKSTART.md](QUICKSTART.md) для детальных инструкций.
-
 ### Минимальные требования
 
-**Для полной функциональности:**
-- **ОС**: Linux (Debian, Ubuntu, Astra Linux, Linux Mint и другие Debian-based дистрибутивы)
+- **ОС**: Linux (Debian, Ubuntu, Astra Linux и другие Debian-based дистрибутивы) или Windows с WSL2
 - **Python**: 3.10+
-- **Podman или Docker**: последняя версия (rootless для Podman)
+- **Podman или Docker**: последняя версия
 - **Node.js**: 18+
 
-**Для разработки на Windows:**
-- **ОС**: Windows 10/11
-- **Python**: 3.10+
-- **Node.js**: 18+
-- **WSL2** (опционально, для тестирования с контейнерами)
+### Установка на Windows
 
-### Быстрая установка
+Для разработки на Windows используйте WSL2 или mock-режим. Подробности: [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md)
 
-```bash
-# 1. Установите зависимости (см. QUICKSTART.md)
-
-# 2. Установите backend
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# 3. Установите frontend
-cd ../frontend/web
-npm install
-
-# 4. Запустите (в двух терминалах)
-# Терминал 1: Backend (из корневой директории)
-source backend/venv/bin/activate  # Linux/Mac
-# или backend\venv\Scripts\activate  # Windows
-python -m backend.api.main
-# или: uvicorn backend.api.main:app --reload
-
-# Терминал 2: Frontend
-cd frontend/web
-npm start
-```
-
-Откройте http://localhost:3000 в браузере.
-
-### Разработка на Windows (без Podman)
-
-Для разработки на Windows можно использовать mock-режим:
-
-```powershell
-# Установите переменную окружения
-$env:MOCK_SANDBOX="true"
-
-# Запустите backend
-cd backend
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python -m uvicorn api.main:app --reload
-
-# В другом терминале - frontend
-cd frontend\web
-npm start
-```
-
-Или используйте скрипт:
-```powershell
-.\scripts\start-dev-windows.bat
-```
-
-**Примечание**: В mock-режиме реальные контейнеры не создаются, но можно тестировать весь UI и логику приложения.
-
-См. [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) для подробностей.
+**Полное руководство по установке**: [GETTING_STARTED.md](GETTING_STARTED.md)
 
 ## 📋 Статус разработки
 
@@ -167,9 +85,8 @@ npm start
 - **[AUTHENTICATION.md](AUTHENTICATION.md)** - Система аутентификации и регистрации
 
 ### Установка на разных системах
-- [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows и WSL
-- [docs/WSL_NETWORK_ACCESS.md](docs/WSL_NETWORK_ACCESS.md) - Доступ к WSL2 из локальной сети
 - [GETTING_STARTED.md](GETTING_STARTED.md) - Полное руководство по установке (включая Astra Linux)
+- [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md) - Разработка на Windows и WSL (включая доступ из локальной сети)
 
 ### Руководства по компонентам
 - [docs/PODMAN_GUIDE.md](docs/PODMAN_GUIDE.md) - Работа с Podman и создание образов

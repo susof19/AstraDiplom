@@ -17,37 +17,29 @@ logger = logging.getLogger(__name__)
 
 def _get_host_ip() -> str:
     """Получить IP адрес хоста для доступа из локальной сети"""
-    try:
-        # Пробуем подключиться к внешнему адресу, чтобы определить локальный IP
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # Не отправляем данные, просто определяем локальный IP
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        # Если не удалось определить IP, используем localhost
-        # Frontend сам определит правильный адрес при подключении
-        return "localhost"
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return "localhost"
 
 
 def _detect_container_command() -> str:
     """Автоматически определить доступную команду (docker или podman)"""
-    # Сначала проверяем настройку из config
     if settings.PODMAN_BINARY and settings.PODMAN_BINARY != "podman":
         cmd = settings.PODMAN_BINARY.split()[0]
         if shutil.which(cmd):
             return settings.PODMAN_BINARY
     
-    # Проверяем docker
     if shutil.which("docker"):
         return "docker"
     
-    # Проверяем podman
     if shutil.which("podman"):
         return "podman"
     
-    # Если ничего не найдено, возвращаем настройку по умолчанию
     return settings.PODMAN_BINARY
 
 
@@ -59,25 +51,16 @@ class ContainerSandbox:
         self.level = level
         self.use_vnc = use_vnc
         
-        # Определяем команду контейнера один раз
         self.container_cmd = _detect_container_command()
-        
-        # Определяем дистрибутив
         if distro is None:
             distro = settings.DEFAULT_DISTRO
         
-        # Автоматический выбор образа на основе дистрибутива и уровня
-        # ИСПОЛЬЗУЕМ ТУ ЖЕ ЛОГИКУ ЧТО И ДЛЯ УРОВНЯ A, НО С БАЗОВЫМИ ОБРАЗАМИ ДЛЯ B/C
         if image is None:
-            # Для уровня A используем GUI образ
             image = settings.DISTRO_GUI_IMAGES.get(distro, settings.DISTRO_GUI_IMAGES["debian"])
             logger.info(f"[LEVEL A] Выбран GUI образ для distro={distro}: {image}")
         
-        # Сохраняем финальный образ
         self.image = image
         logger.info(f"[FINAL] Финальный образ для {level}: {self.image}")
-        
-        # Если требуется VNC, но образ не GUI, пытаемся найти GUI версию
         if use_vnc and level == "A" and "gui-vnc" not in self.image:
             # Пытаемся найти GUI образ для текущего дистрибутива
             gui_image = settings.DISTRO_GUI_IMAGES.get(distro)
@@ -90,7 +73,7 @@ class ContainerSandbox:
         self.vnc_port: Optional[int] = None
         self.novnc_port: Optional[int] = None
         self.status: str = "created"
-        self.container_user: Optional[str] = None  # Будет определен при создании
+        self.container_user: Optional[str] = None
         
     async def _image_exists(self, image_name: str) -> bool:
         """Проверить существование образа"""
@@ -120,11 +103,8 @@ class ContainerSandbox:
         """Создать контейнер (rootless режим для Podman или Docker)"""
         logger.info(f"[CREATE] === НАЧАЛО СОЗДАНИЯ КОНТЕЙНЕРА ДЛЯ МИССИИ {self.mission_id} ===")
         try:
-            # Автоматически определяем доступную команду
             container_cmd = _detect_container_command()
             base_cmd = container_cmd.split()
-            
-            # Проверяем, что команда доступна
             cmd_name = base_cmd[0]
             if not shutil.which(cmd_name):
                 logger.error(f"Команда {cmd_name} не найдена в PATH")
@@ -133,7 +113,6 @@ class ContainerSandbox:
                 logger.error("   - Для Linux: sudo apt-get install docker.io или podman")
                 return False
             
-            # Проверяем, что команда работает
             try:
                 result = await asyncio.create_subprocess_exec(
                     cmd_name, "--version",
@@ -156,53 +135,40 @@ class ContainerSandbox:
                 logger.error(f"Ошибка проверки команды {cmd_name}: {e}")
                 return False
             
-            # Определяем параметры в зависимости от уровня
             cmd = base_cmd + [
                 "run",
                 "-d",
                 "--name", self.container_name,
-                "--rm",  # Автоудаление при остановке
+                "--rm",
                 "--memory", settings.SANDBOX_MEMORY_LIMIT,
                 "--cpus", settings.SANDBOX_CPU_LIMIT,
             ]
             
-            # Определяем, какая команда используется
             is_podman = "podman" in cmd_name.lower()
             is_docker = "docker" in cmd_name.lower()
             
-            # Для rootless режима (Podman) или обычного режима (Docker)
             if is_podman and settings.PODMAN_ROOTLESS:
-                # В rootless режиме Podman используем --userns=keep-id
                 cmd.extend([
-                    "--userns=keep-id",  # Сохранить UID/GID пользователя
+                    "--userns=keep-id",
                 ])
             elif is_docker:
-                # Docker не поддерживает --userns=keep-id, используем другие опции
-                # В WSL/Docker Desktop обычно не нужны специальные опции безопасности
-                pass  # Docker Desktop в WSL работает без дополнительных опций
+                pass
             else:
-                # Для других случаев (например, Docker с rootless)
                 cmd.extend([
                     "--security-opt", "label=disable",
                 ])
             
-            # Для уровня A добавляем GUI (VNC)
             if self.use_vnc:
-                # Находим свободные порты для VNC и noVNC
                 self.vnc_port = await self._find_free_port(settings.VNC_PORT_START)
                 self.novnc_port = await self._find_free_port(settings.NOVNC_PORT_START)
                 
-                # Определяем порты внутри контейнера в зависимости от образа
-                # Образ astra-vnc использует порт 80 для noVNC, остальные - 6080
                 is_astra_vnc = "astra-vnc" in self.image.lower()
                 novnc_container_port = 80 if is_astra_vnc else 6080
-                vnc_container_port = 5900  # Стандартный порт VNC
+                vnc_container_port = 5900
                 
-                # Для WSL/Docker Desktop нужно явно указать 0.0.0.0 для проброса портов
-                # Это позволяет подключаться из WSL к портам контейнера
                 cmd.extend([
-                    "-p", f"0.0.0.0:{self.vnc_port}:{vnc_container_port}",  # TigerVNC порт
-                    "-p", f"0.0.0.0:{self.novnc_port}:{novnc_container_port}",  # noVNC порт
+                    "-p", f"0.0.0.0:{self.vnc_port}:{vnc_container_port}",
+                    "-p", f"0.0.0.0:{self.novnc_port}:{novnc_container_port}",
                     "-e", "DISPLAY=:0",
                     "-e", f"VNC_PORT={vnc_container_port}",
                     "-e", f"NOVNC_PORT={novnc_container_port}",
@@ -211,17 +177,13 @@ class ContainerSandbox:
                 
                 logger.info(f"VNC порты: VNC={self.vnc_port}->{vnc_container_port}, noVNC={self.novnc_port}->{novnc_container_port} (проброшены на 0.0.0.0)")
             
-            # Монтируем read-only папку уровня (чтобы можно было использовать файлы из других миссий)
             level_dir = settings.MISSIONS_DIR / f"level_{self.level.lower()}"
             if level_dir.exists():
                 cmd.extend([
                     "-v", f"{level_dir}:/mission:ro",
                 ])
             
-            # Для уровня A используем стандартный entrypoint образа
             cmd.append(self.image)
-            
-            # Запускаем контейнер
             logger.info(f"[CREATE] Запуск команды создания контейнера для миссии {self.mission_id}")
             result = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -238,8 +200,6 @@ class ContainerSandbox:
             self.status = "running"
             logger.info(f"[CREATE] Контейнер создан: {self.container_name} ({self.container_id})")
             
-            # Определяем пользователя контейнера
-            # Для образа astra-vnc всегда используем root
             if "astra-vnc" in self.image.lower():
                 self.container_user = "root"
                 logger.info(f"[CREATE] Используется пользователь root для образа astra-vnc")
@@ -250,9 +210,8 @@ class ContainerSandbox:
                     logger.info(f"[CREATE] Определён пользователь: {self.container_user}")
                 except Exception as e:
                     logger.error(f"[CREATE] Ошибка определения пользователя: {e}", exc_info=True)
-                    self.container_user = "root"  # Fallback
+                    self.container_user = "root"
             
-            # Выполняем setup после создания контейнера
             logger.info(f"[SETUP] === НАЧАЛО ВЫПОЛНЕНИЯ SETUP ДЛЯ МИССИИ {self.mission_id} ===")
             try:
                 await self._run_setup_after_create()
@@ -335,7 +294,6 @@ class ContainerSandbox:
             logger.error(f"Контейнер {self.container_name} не существует, невозможно выполнить команду")
             return "", 1
         
-        # Используем определенного пользователя или переданного
         if user is None:
             user = self.container_user or "sandboxuser"
         
@@ -371,7 +329,6 @@ class ContainerSandbox:
             data = json.loads(stdout.decode())
             container_info = data[0] if data else {}
             
-            # Добавляем информацию о VNC портах
             if self.vnc_port or self.novnc_port:
                 container_info["vnc_info"] = {
                     "vnc_port": self.vnc_port,
@@ -390,19 +347,9 @@ class ContainerSandbox:
         if not self.novnc_port:
             return None
         
-        # Определяем путь к noVNC в зависимости от образа
-        # Образ astra-vnc использует /vnc.html (или /), остальные - /vnc.html
         is_astra_vnc = "astra-vnc" in self.image.lower()
-        # Для astra-vnc пробуем сначала /vnc.html, если не работает - /
-        novnc_path = "/vnc.html" if is_astra_vnc else "/vnc.html"
-        
-        # Определяем хост для VNC URL
-        # Всегда используем localhost - frontend заменит на правильный IP/hostname
-        # при подключении с другой машины в локальной сети
+        novnc_path = "/vnc.html"
         host = "localhost"
-        
-        # noVNC поддерживает автоматическую передачу пароля через параметр password
-        # Пароль будет автоматически передан при подключении к VNC серверу
         password = settings.VNC_PASSWORD
         return f"http://{host}:{self.novnc_port}{novnc_path}?password={password}&autoconnect=true&resize=scale"
     
@@ -434,7 +381,6 @@ class ContainerSandbox:
     
     async def _detect_container_user(self):
         """Определить пользователя контейнера (root, sandboxuser, user или astrauser)"""
-        # Сначала проверяем, кто запускает VNC/XFCE процессы (это основной пользователь GUI)
         try:
             output, code = await self.exec_command("ps aux | grep -E '(vnc|xfce|fly|websockify)' | grep -v grep | head -1 | awk '{print $1}'", user="root")
             if output.strip() and output.strip() != "root":
@@ -444,7 +390,6 @@ class ContainerSandbox:
         except Exception:
             pass
         
-        # Проверяем домашние директории для не-root пользователей
         for username in ["sandboxuser", "user", "astrauser"]:
             try:
                 output, code = await self.exec_command(f"test -d /home/{username} && echo 'exists' || echo 'not_found'", user="root")
@@ -455,7 +400,6 @@ class ContainerSandbox:
             except Exception:
                 continue
         
-        # Если процессы VNC/GUI запущены от root, используем root
         try:
             output, code = await self.exec_command("ps aux | grep -E '(vnc|xfce|fly|websockify)' | grep -v grep | head -1", user="root")
             if "root" in output:
@@ -465,7 +409,6 @@ class ContainerSandbox:
         except Exception:
             pass
         
-        # Fallback: проверяем существует ли /root и используем его
         try:
             output, code = await self.exec_command("test -d /root && echo 'exists' || echo 'not_found'", user="root")
             if "exists" in output:
@@ -475,7 +418,6 @@ class ContainerSandbox:
         except Exception:
             pass
         
-        # Последний fallback на sandboxuser
         self.container_user = "sandboxuser"
         logger.warning(f"Не удалось определить пользователя контейнера, используется по умолчанию: {self.container_user}")
     
@@ -518,11 +460,7 @@ class ContainerSandbox:
             
             logger.info(f"[SETUP] Выполнение setup для миссии {self.mission_id} после создания контейнера")
             
-            # Используем определенного пользователя контейнера
             container_user = self.container_user or "sandboxuser"
-            
-            # Заменяем переменные пользователя в путях (для совместимости с разными образами)
-            # Определяем домашнюю директорию пользователя
             if container_user == "root":
                 user_home = "/root"
             else:
@@ -530,17 +468,13 @@ class ContainerSandbox:
                 user_home = home_output.strip() if home_code == 0 else f"/home/{container_user}"
             logger.info(f"Домашняя директория пользователя {container_user}: {user_home}")
             
-            # Функция для замены путей
             def replace_user_path(path: str) -> str:
-                """Заменяет /home/sandboxuser, /home/user на реальный путь пользователя, но НЕ заменяет /root если пользователь root"""
+                """Заменяет /home/sandboxuser, /home/user на реальный путь пользователя"""
                 if container_user == "root":
-                    # Для root не заменяем /root, только /home/ пути
                     return path.replace("/home/sandboxuser", user_home).replace("/home/user", user_home)
                 else:
-                    # Для других пользователей заменяем все пути
                     return path.replace("/home/sandboxuser", user_home).replace("/home/user", user_home).replace("/root", user_home)
             
-            # Создаём директории
             directories = setup.get("directories", [])
             for directory in directories:
                 original_dir = directory
@@ -550,22 +484,19 @@ class ContainerSandbox:
                     output, code = await self.exec_command(f"mkdir -p '{directory}'", user=container_user)
                     if code == 0:
                         logger.info(f"[SETUP] ✓ Директория создана: {directory}")
-                        # Устанавливаем права доступа
                         await self.exec_command(f"chmod 755 '{directory}'", user=container_user)
                     else:
                         logger.warning(f"[SETUP] ✗ Не удалось создать директорию {directory}: код {code}, output: {output}")
                 except Exception as e:
                     logger.error(f"[SETUP] Ошибка создания директории {directory}: {e}")
             
-            # Создаём/копируем файлы
             files = setup.get("files", [])
             for file_spec in files:
                 file_path = file_spec.get("path")
-                # Заменяем путь пользователя
                 file_path = replace_user_path(file_path)
-                file_spec["path"] = file_path  # Обновляем в словаре
+                file_spec["path"] = file_path
                 
-                file_source = file_spec.get("source", None)  # Путь к файлу в папке миссии
+                file_source = file_spec.get("source", None)
                 file_content = file_spec.get("content", None)
                 file_mode = file_spec.get("mode", "644")
                 
@@ -574,25 +505,17 @@ class ContainerSandbox:
                     continue
                 
                 try:
-                    # Создаём директорию для файла если нужно
                     parent_dir = file_path.rsplit('/', 1)[0] if '/' in file_path else '.'
                     await self.exec_command(f"mkdir -p '{parent_dir}'", user=container_user)
                     
                     if file_source:
-                        # Копируем файл из папки уровня (/mission/ монтирован read-only)
-                        # file_source может быть относительным путем, например "../copy_file/photo.jpg"
-                        # или просто "photo.jpg" для файла в текущей миссии
                         if file_source.startswith("../"):
-                            # Относительный путь: ../copy_file/photo.jpg -> /mission/copy_file/photo.jpg
                             source_path = f"/mission/{file_source.replace('../', '')}"
                         elif file_source.startswith("./"):
-                            # Относительный путь: ./photo.jpg -> /mission/mission_id/photo.jpg
                             source_path = f"/mission/{self.mission_id}/{file_source.replace('./', '')}"
                         elif "/" in file_source:
-                            # Абсолютный путь относительно уровня: copy_file/photo.jpg -> /mission/copy_file/photo.jpg
                             source_path = f"/mission/{file_source}"
                         else:
-                            # Файл в текущей миссии: photo.jpg -> /mission/mission_id/photo.jpg
                             source_path = f"/mission/{self.mission_id}/{file_source}"
                         logger.info(f"[SETUP] Копирование файла из {source_path} в {file_path}")
                         output, code = await self.exec_command(
@@ -603,12 +526,8 @@ class ContainerSandbox:
                         else:
                             logger.error(f"[SETUP] ✗ Не удалось скопировать файл из {source_path} в {file_path}: код {code}, output: {output}")
                     elif file_content is not None:
-                        # Создаём файл с содержимым
-                        # Используем printf для поддержки многострочного контента и специальных символов
                         content_str = str(file_content)
-                        # Экранируем специальные символы для shell
                         escaped_content = content_str.replace("\\", "\\\\").replace("'", "'\"'\"'").replace("$", "\\$").replace("`", "\\`")
-                        # Используем printf для правильной обработки \n
                         output, code = await self.exec_command(
                             f"printf '%s\\n' '{escaped_content}' > '{file_path}'", user=container_user
                         )
@@ -617,20 +536,16 @@ class ContainerSandbox:
                         else:
                             logger.warning(f"Не удалось создать файл {file_path}: код {code}, output: {output}")
                     else:
-                        # Создаём пустой файл
                         output, code = await self.exec_command(f"touch '{file_path}'", user=container_user)
                         if code == 0:
                             logger.debug(f"Пустой файл создан: {file_path}")
                     
-                    # Устанавливаем права доступа
                     await self.exec_command(f"chmod {file_mode} '{file_path}'", user=container_user)
-                    # Устанавливаем владельца
                     await self.exec_command(f"chown {container_user}:{container_user} '{file_path}'", user="root")
                     
                 except Exception as e:
                     logger.error(f"Ошибка обработки файла {file_path}: {e}", exc_info=True)
             
-            # Выполняем произвольные команды setup
             commands = setup.get("commands", [])
             for cmd in commands:
                 try:

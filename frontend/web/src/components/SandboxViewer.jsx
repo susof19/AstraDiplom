@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { getSandbox } from '../api/missions'
 import './SandboxViewer.css'
 
-// Этапы загрузки песочницы
 const LOADING_STAGES = {
   CREATING: { 
     id: 'creating', 
@@ -43,11 +42,8 @@ const LOADING_STAGES = {
   }
 }
 
-// Функция для замены localhost на текущий hostname (для доступа из локальной сети)
 function replaceLocalhostWithHostname(url) {
   if (!url) return url
-  // Заменяем localhost или 127.0.0.1 на hostname текущего окна
-  // Это позволяет подключаться к VNC с других машин в локальной сети
   return url.replace(/localhost|127\.0\.0\.1/, window.location.hostname)
 }
 
@@ -64,7 +60,6 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     queryFn: () => getSandbox(missionId),
     enabled: !!missionId,
     refetchInterval: (query) => {
-      // Если песочница создается или VNC не готов, опрашиваем чаще
       if (isCreating || (query.state.data && !vncReady && (level === 'A' || level === 'B'))) {
         return 2000
       }
@@ -72,23 +67,18 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     }
   })
 
-  // Определяем текущий этап загрузки
   useEffect(() => {
-    // Если идет создание и песочницы еще нет
     if (isCreating && !sandbox) {
       setLoadingStage(LOADING_STAGES.CREATING)
       return
     }
     
-    // Если песочницы нет, сбрасываем этап
     if (!sandbox) {
       setLoadingStage(null)
       return
     }
     
-    // Если есть container_id, значит контейнер создан и запущен
     if (sandbox.container_id) {
-      // Для уровня A нужен VNC
       if (level === 'A' || level === 'B') {
         if (!sandbox.vnc_port) {
           setLoadingStage(LOADING_STAGES.INITIALIZING)
@@ -100,14 +90,11 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
           setLoadingStage(LOADING_STAGES.READY)
         }
       } else {
-        // Для уровней B и C VNC не нужен
         setLoadingStage(LOADING_STAGES.READY)
       }
     } else if (sandbox.status) {
-      // Если есть статус, но нет container_id, значит идет запуск
       setLoadingStage(LOADING_STAGES.STARTING)
     } else {
-      // Иначе - создание
       setLoadingStage(LOADING_STAGES.CREATING)
     }
   }, [sandbox, isCreating, vncReady, level])
@@ -115,23 +102,17 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
   useEffect(() => {
     if (sandbox?.novnc_port && sandbox?.vnc_url) {
       let retryCount = 0
-      const maxRetries = 60 // 2 минуты максимум (60 * 2 секунды)
+      const maxRetries = 90
       let connectionCheckInterval = null
       
-      // Проверяем готовность VNC сервера через проверку наличия порта и URL
-      // Не используем fetch напрямую из-за CORS и проблем с localhost в браузере
       const checkVncReady = () => {
         retryCount++
         
-        // Если есть novnc_port и vnc_url, считаем что VNC готов
-        // Фактическую доступность проверит iframe
         if (sandbox.novnc_port && sandbox.vnc_url) {
-          // Даем время на запуск (увеличено для более надежного запуска noVNC)
-          if (retryCount >= 5) { // После 5 попыток (10 секунд) считаем готовым
+          if (retryCount >= 15) {
             setVncReady(true)
             setVncError(null)
             setLoadingStage(LOADING_STAGES.READY)
-            // Добавляем дополнительную задержку перед показом iframe (2 секунды)
             setTimeout(() => {
               setShowIframe(true)
             }, 2000)
@@ -148,10 +129,8 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
         }
       }
       
-      // Проверка состояния соединения - если iframe показывает экран подключения долгое время
       const checkConnectionStatus = () => {
-        // Если прошло больше 30 секунд (15 попыток * 2 сек) и соединение не установлено
-        if (retryCount > 15 && !vncReady) {
+        if (retryCount > 30 && !vncReady) {
           setConnectionTimeout(true)
           setVncError('Не удалось установить соединение с VNC сервером. Возможно, рабочий стол не запущен.')
         }
@@ -167,7 +146,6 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
         retryCount = 0
       }
     } else {
-      // Если нет novnc_port или песочница остановлена, сбрасываем состояние
       setVncReady(false)
       setVncError(null)
       setLoadingStage(null)
@@ -176,7 +154,6 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     }
   }, [sandbox, vncReady])
   
-  // Отслеживаем изменения статуса песочницы - если она остановлена, возвращаемся к исходному состоянию
   useEffect(() => {
     if (sandbox && (sandbox.status === 'stopped' || sandbox.status === 'removed')) {
       setVncReady(false)
@@ -187,7 +164,6 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     }
   }, [sandbox?.status])
 
-  // Компонент индикатора загрузки с этапами
   const LoadingIndicator = ({ stage }) => {
     if (!stage) return null
     
@@ -220,11 +196,6 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     )
   }
 
-  // Показываем индикатор загрузки если:
-  // 1. Идет начальная загрузка
-  // 2. Идет создание песочницы
-  // 3. Песочница есть, но еще не готова (не достигнут этап READY)
-  // 4. Песочница остановлена или удалена - возвращаемся к исходному состоянию
   const isSandboxStopped = sandbox && (sandbox.status === 'stopped' || sandbox.status === 'removed')
   const showLoading = isLoading || isCreating || (sandbox && !isSandboxStopped && loadingStage && loadingStage.id !== 'ready') || (!sandbox && isCreating)
   
@@ -238,7 +209,6 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     )
   }
 
-  // Если песочница остановлена, удалена или не существует - показываем исходное состояние
   if (!sandbox || isSandboxStopped) {
     return (
       <div className="sandbox-viewer">
@@ -250,10 +220,7 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     )
   }
 
-  // Для уровня A - GUI через noVNC
-  // Показываем VNC только если песочница запущена
   if ((level === 'A' || level === 'B' || sandbox.novnc_port) && sandbox.vnc_url && sandbox.status === 'running' && !isSandboxStopped) {
-    // Если соединение не установлено долгое время, показываем сообщение о проблеме
     const showConnectionError = vncError && vncError.includes('Не удалось установить соединение')
     
     return (
@@ -283,29 +250,24 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
           </div>
         )}
         
-        {/* Показываем iframe только после задержки для загрузки noVNC */}
         {!showConnectionError && !connectionTimeout && sandbox.vnc_url && showIframe ? (
           <div className="vnc-container">
             <iframe
               ref={iframeRef}
-              key={sandbox.vnc_url} // Ключ для пересоздания iframe при изменении URL
+              key={sandbox.vnc_url}
               src={replaceLocalhostWithHostname(sandbox.vnc_url)}
               title="Linux Desktop"
               className="vnc-iframe"
               allow="clipboard-read; clipboard-write"
               onLoad={() => {
-                // Если iframe загрузился, считаем что страница загружена
-                // Но соединение может еще не быть установлено
-                // Даем еще немного времени на установку соединения
                 const timeoutId = setTimeout(() => {
                   if (sandbox.status === 'running' && !connectionTimeout) {
                     setVncReady(true)
                     setVncError(null)
                     setLoadingStage(LOADING_STAGES.READY)
                   }
-                }, 5000) // Даем 5 секунд на установку соединения
+                }, 5000)
                 
-                // Очищаем таймаут при размонтировании
                 return () => clearTimeout(timeoutId)
               }}
               onError={() => {
@@ -354,7 +316,6 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     )
   }
 
-  // Для уровня B и C - терминал
   return (
     <div className="sandbox-viewer">
       <div className="sandbox-header">
@@ -364,7 +325,7 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
       <div className="terminal-container">
         <div className="terminal-placeholder">
           <p>💻 Терминал</p>
-          <p className="hint">TODO: Интеграция xterm.js</p>
+          <p className="hint">Интеграция терминала в разработке</p>
         </div>
       </div>
     </div>

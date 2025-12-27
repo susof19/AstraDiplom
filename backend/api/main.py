@@ -7,7 +7,6 @@ import logging
 from backend.config import settings
 from backend.api.routes import missions, sandbox, grader, progress, auth, admin
 from backend.sandbox.manager import sandbox_manager
-# Импортируем модели для регистрации в Base
 from backend.models.user_db import User  # noqa: F401
 
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +18,6 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -28,7 +26,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключаем роуты
 logger.info("📋 Регистрация API роутов...")
 app.include_router(auth.router, prefix=f"{settings.API_PREFIX}/auth", tags=["auth"])
 logger.info(f"   ✅ Auth роуты зарегистрированы: {settings.API_PREFIX}/auth")
@@ -54,17 +51,14 @@ async def startup_event():
     logger.info(f"📋 API префикс: {settings.API_PREFIX}")
     logger.info("=" * 60)
     
-    # Проверка и инициализация базы данных
     try:
         from backend.database import engine, Base
-        from backend.models.user_db import User  # Импортируем для регистрации модели
+        from backend.models.user_db import User
         logger.info("🔍 Проверка соединения с базой данных...")
         
-        # Проверяем соединение
         with engine.connect() as conn:
             logger.info("✅ Соединение с базой данных установлено")
         
-        # Создаем таблицы, если их нет
         logger.info("📦 Проверка таблиц базы данных...")
         Base.metadata.create_all(bind=engine)
         logger.info("✅ Таблицы базы данных готовы")
@@ -79,7 +73,6 @@ async def startup_event():
         logger.error("💡 Выполните: python backend/init_db.py")
         logger.warning("⚠️  Приложение продолжит работу, но функции аутентификации могут не работать")
     
-    # Проверка совместимости системы (Podman/Docker)
     try:
         from backend.sandbox.astra_check import run_compatibility_check
         compat = run_compatibility_check()
@@ -104,7 +97,6 @@ async def startup_event():
 async def shutdown_event():
     """Очистка при остановке"""
     logger.info("Остановка API")
-    # Останавливаем все песочницы
     for mission_id in list(sandbox_manager.sandboxes.keys()):
         await sandbox_manager.remove_sandbox(mission_id)
 

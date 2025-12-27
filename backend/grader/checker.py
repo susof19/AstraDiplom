@@ -56,10 +56,6 @@ class MissionChecker:
                 "checks": []
             }
         
-        # ВАЖНО: setup уже выполнен при создании контейнера
-        # Здесь мы только проверяем результат работы пользователя
-        
-        # Определяем домашнюю директорию пользователя для замены путей
         container_user = sandbox.container_user or "sandboxuser"
         try:
             if container_user == "root":
@@ -90,7 +86,6 @@ class MissionChecker:
                 return path
         
         checks = config.get("checks", [])
-        # Заменяем пути в checks на реальные пути пользователя
         for check in checks:
             if "path" in check:
                 check["path"] = replace_user_path(check["path"])
@@ -128,7 +123,6 @@ class MissionChecker:
             
             results.append(check_result)
         
-        # Подсчитываем финальный score на основе баллов
         score = int((earned_points / total_points) * 100) if total_points > 0 else 0
         result = CheckResult.PASSED if passed == len(checks) else (CheckResult.PARTIAL if passed > 0 else CheckResult.FAILED)
         
@@ -178,25 +172,22 @@ class MissionChecker:
     async def _check_file_exists(self, check: Dict[str, Any], sandbox: ContainerSandbox) -> Dict[str, Any]:
         """Проверить существование файла или директории"""
         path = check.get("path")
-        check_type = check.get("file_type", "file")  # file, directory, или both
-        expected = check.get("expected", True)  # True - должен существовать, False - не должен существовать
+        check_type = check.get("file_type", "file")
+        expected = check.get("expected", True)
         
         if not path:
             return {"name": check.get("name"), "passed": False, "message": "Путь не указан"}
         
         try:
             if check_type == "directory":
-                # Проверяем только директорию
                 output, code = await sandbox.exec_command(f"test -d '{path}' && echo 'exists' || echo 'not_found'")
                 exists = "exists" in output
                 item_type = "Директория"
             elif check_type == "file":
-                # Проверяем только файл
                 output, code = await sandbox.exec_command(f"test -f '{path}' && echo 'exists' || echo 'not_found'")
                 exists = "exists" in output
                 item_type = "Файл"
-            else:  # both или не указан
-                # Проверяем что существует (файл или директория)
+            else:
                 output, code = await sandbox.exec_command(f"test -e '{path}' && echo 'exists' || echo 'not_found'")
                 exists = "exists" in output
                 item_type = "Файл или директория"
@@ -207,8 +198,6 @@ class MissionChecker:
             exists = False
             item_type = "Файл или директория"
         
-        # Если expected=False, то passed=True когда файл НЕ существует
-        # Если expected=True (по умолчанию), то passed=True когда файл существует
         passed = (exists == expected)
         
         if expected is False:
@@ -227,7 +216,7 @@ class MissionChecker:
         """Проверить содержимое файла"""
         path = check.get("path")
         expected = check.get("expected")
-        operator = check.get("operator", "contains")  # contains, equals, regex
+        operator = check.get("operator", "contains")
         
         if not path:
             return {"name": check.get("name"), "passed": False, "message": "Путь не указан"}
@@ -269,8 +258,8 @@ class MissionChecker:
         """Проверить вывод команды с различными операторами сравнения"""
         command = check.get("command")
         expected = check.get("expected")
-        operator = check.get("operator", "contains")  # contains, equals, greater_than, less_than, regex
-        exit_code_required = check.get("exit_code", None)  # Проверка кода возврата
+        operator = check.get("operator", "contains")
+        exit_code_required = check.get("exit_code", None)
         
         if not command:
             return {"name": check.get("name"), "passed": False, "message": "Команда не указана"}
@@ -279,7 +268,6 @@ class MissionChecker:
             output, code = await sandbox.exec_command(command)
             output = output.strip()
             
-            # Проверяем код возврата если требуется
             if exit_code_required is not None:
                 if code != exit_code_required:
                     return {
@@ -289,7 +277,6 @@ class MissionChecker:
                         "message": f"Код возврата не совпадает: получено {code}, ожидалось {exit_code_required}"
                     }
             
-            # Если expected не указан, проверяем только код возврата
             if expected is None:
                 matches = (code == 0) if exit_code_required is None else (code == exit_code_required)
                 return {
@@ -299,7 +286,6 @@ class MissionChecker:
                     "message": f"Команда {'выполнена успешно' if matches else f'завершилась с кодом {code}'}"
                 }
             
-            # Сравниваем вывод в зависимости от оператора
             if operator == "contains":
                 matches = str(expected) in output
             elif operator == "equals":
@@ -342,7 +328,6 @@ class MissionChecker:
     
     async def _check_gui_state(self, check: Dict[str, Any], sandbox: ContainerSandbox) -> Dict[str, Any]:
         """Проверить состояние GUI (для уровня A)"""
-        # Проверяем доступность VNC
         if not sandbox.use_vnc or not sandbox.novnc_port:
             return {
                 "name": check.get("name", "GUI state"),
@@ -351,16 +336,8 @@ class MissionChecker:
                 "message": "VNC не доступен для проверки GUI"
             }
         
-        # TODO: Реализовать проверку через скриншоты VNC
-        # Для этого можно использовать:
-        # 1. vncsnapshot или vncdotool для получения скриншота
-        # 2. OCR (tesseract) для распознавания текста
-        # 3. Image comparison для поиска элементов интерфейса
-        # 
-        # Пока возвращаем заглушку
         window_name = check.get("window", None)
         if window_name:
-            # Проверяем наличие окна через команду (fallback метод)
             try:
                 output, code = await sandbox.exec_command(f"pgrep -f '{window_name}' || echo 'not_found'")
                 window_exists = "not_found" not in output

@@ -60,18 +60,13 @@
 ./setup-astra-vnc-image.sh
 ```
 
-**Что делает**:
-- Клонирует репозиторий с образом
-- Собирает Docker/Podman образ `localhost/astra-vnc:latest`
-- Подготавливает образ к использованию
+**Результат**: Образ `localhost/astra-vnc:latest` готов к использованию.
 
-**Результат**: Образ `localhost/astra-vnc:latest` готов к использованию для дистрибутива `astra`.
-
-**Подробнее**: См. раздел "Настройка образа Astra Linux с VNC" в [docs/VNC_GUIDE.md](../docs/VNC_GUIDE.md)
+**Подробнее**: [docs/VNC_GUIDE.md](../docs/VNC_GUIDE.md)
 
 ---
 
-### 🔧 fix-podman-images.sh - Исправление проблем
+### 🔧 fix-podman-images.sh - Исправление проблем с образами
 
 Переносит образы из root в rootless хранилище.
 
@@ -84,54 +79,41 @@
 
 ---
 
-### 📥 import-astra-image.sh - Импорт образа
+### 📥 Работа с образами
 
-Импортирует образ из tar-архива.
-
-**Использование**:
+**Импорт образа из tar-архива**:
 ```bash
 ./import-astra-image.sh /path/to/image.tar
 ```
 
----
-
-### 📦 pull-astra-image.sh - Загрузка из реестра
-
-Загружает готовый образ из реестра Astra Linux.
-
-**Использование**:
+**Загрузка образа из реестра**:
 ```bash
 ./pull-astra-image.sh
 ```
 
 ---
 
-### 🎯 quickstart-astra.sh - Быстрый старт
+### 🎯 quickstart-*.sh - Быстрый старт
 
-Автоматическая установка всех зависимостей на Astra Linux.
+Автоматическая установка всех зависимостей для разных систем:
+
+- `quickstart.sh` - для Linux (Debian, Ubuntu)
+- `quickstart-astra.sh` - для Astra Linux
+- `quickstart-wsl.sh` - для WSL
 
 **Использование**:
 ```bash
-./quickstart-astra.sh
+./quickstart.sh          # Linux
+./quickstart-astra.sh    # Astra Linux
+./quickstart-wsl.sh      # WSL
 ```
 
-Устанавливает:
-- Podman
+Устанавливают:
+- Podman/Docker
 - Node.js
 - Python зависимости
-- Создаёт образы
-- Создаёт ярлык запуска
-
----
-
-### 🖥️ start.sh - Запуск приложения
-
-Запускает backend и frontend (Linux/Mac).
-
-**Использование**:
-```bash
-./start.sh
-```
+- Создают образы (опционально)
+- Создают скрипты запуска
 
 ---
 
@@ -178,11 +160,14 @@ podman run -d -p 5900:5900 -p 6080:6080 localhost/astra-linux:vnc
 # Образ не виден после создания через sudo
 ./fix-podman-images.sh
 
-# Проверка образов у root
-sudo podman images
+# Проверка базы данных
+./check-database.sh
 
-# Проверка образов у пользователя
-podman images
+# Настройка базы данных
+./setup-database.sh
+
+# Исправление кодировки БД
+./fix-database-encoding.sh
 ```
 
 ---
@@ -218,166 +203,54 @@ localhost/linux-gui-vnc:{distro}  - Образ с VNC (+ TigerVNC + noVNC + XFCE
 
 ## Настройка дистрибутивов
 
-### Использование в API
-
-#### Автоматический выбор (рекомендуется)
-
-```python
-POST /api/v1/sandbox/create
-{
-    "mission_id": "mission-1",
-    "level": "A",
-    "distro": "debian"  # debian, ubuntu, или astra
-}
-```
-
-Система автоматически выберет нужный образ:
+Система автоматически выбирает образ на основе уровня миссии и дистрибутива:
 - **Уровень A** → `linux-gui-vnc:{distro}`
 - **Уровни B/C** → `linux-base:{distro}`
 
-#### Явное указание образа
-
-```python
-POST /api/v1/sandbox/create
-{
-    "mission_id": "mission-1",
-    "level": "A",
-    "image": "localhost/linux-gui-vnc:debian"
-}
-```
-
-### Настройка по умолчанию
-
 В `backend/config.py` можно изменить дистрибутив по умолчанию:
-
 ```python
-DEFAULT_DISTRO: str = "debian"  # Измените на ubuntu или astra
+DEFAULT_DISTRO: str = "debian"  # debian, ubuntu, или astra
 ```
 
-### Проверка образов
-
-```bash
-# Список всех образов
-docker images | grep "linux-gui-vnc\|linux-base"
-# или
-podman images | grep "linux-gui-vnc\|linux-base"
-
-# Проверка конкретного образа
-docker images localhost/linux-gui-vnc:debian
-```
-
-### Сборка образов для разных дистрибутивов
-
-#### Через скрипт (рекомендуется)
-
-```bash
-cd scripts
-./create-astra-image.sh --vnc
-# Выберите нужный вариант (Debian/Ubuntu/Astra)
-```
-
-#### Ручная сборка
-
-```bash
-# Debian
-docker build -f images/Dockerfile.gui-vnc \
-    --build-arg BASE_IMAGE=debian:12 \
-    -t localhost/linux-gui-vnc:debian .
-
-# Ubuntu
-docker build -f images/Dockerfile.gui-vnc \
-    --build-arg BASE_IMAGE=ubuntu:22.04 \
-    -t localhost/linux-gui-vnc:ubuntu .
-
-# Astra Linux (требует предварительно собранный astra-linux:se)
-docker build -f images/Dockerfile.gui-vnc \
-    --build-arg BASE_IMAGE=astra-linux:se \
-    -t localhost/linux-gui-vnc:astra .
-```
+**Подробнее**: [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)
 
 ---
 
-## Совместимость скриптов
+## Скрипты запуска
 
-Все скрипты обновлены и работают с новой архитектурой образов.
+**start-demo.sh** - Запуск для Linux
+- Проверяет наличие образов
+- Запускает backend и frontend
 
-### ✅ Работающие скрипты
+**start-demo-wsl.sh** - Запуск для WSL
+- Выбор образа для использования
+- Запускает backend и frontend
 
-**start-demo.sh** ✅
-- Обновлен для поддержки новой схемы именования
-- Проверяет наличие образов (старые и новые имена)
+## Обратная совместимость
 
-**start-demo-wsl.sh** ✅
-- Работает без изменений
-- Только запускает backend и frontend
-
-**create-astra-image.sh** ✅
-- Обновлен для создания образов с новой схемой именования
-- Создает legacy теги для обратной совместимости
-
-**Скрипты базы данных** ✅
-- `setup-database.sh` - создание БД
-- `check-database.sh` - проверка БД
-- Не зависят от образов контейнеров
-
-**Скрипты быстрого старта** ✅
-- `quickstart.sh` - для Linux
-- `quickstart-wsl.sh` - для WSL
-- `quickstart-astra.sh` - для Astra Linux
-
-### Обратная совместимость
-
-Backend автоматически поддерживает старые имена:
+Backend автоматически поддерживает старые имена образов:
 - `localhost/astra-linux:se`
 - `localhost/astra-linux:vnc`
 - `localhost/linux-sandbox:base`
 - `localhost/linux-sandbox:vnc`
 
-Если вы явно указали старое имя образа в API, оно будет работать.
-
-### Миграция со старых образов
-
-Если у вас есть старые образы:
-
-```bash
-# Переименовать старый образ в новый формат
-docker tag localhost/astra-linux:vnc localhost/linux-gui-vnc:astra
-docker tag localhost/astra-linux:se localhost/linux-base:astra
-
-# Или просто использовать старые имена - они продолжат работать
-```
-
 ---
 
 ## Решение проблем
 
-### Образ не найден
+**Образ не найден**: Убедитесь, что образ собран: `podman images` или `docker images`
 
-Если при создании песочницы возникает ошибка "image not found":
-1. Убедитесь, что образ собран: `docker images` или `podman images`
-2. Проверьте имя образа в `backend/config.py`
-3. Пересоберите образ с правильным тегом
+**Образ не виден после создания через sudo**: Используйте `./fix-podman-images.sh`
 
-### Ошибки при сборке
+**Проблемы с базой данных**: Используйте `./check-database.sh` и `./setup-database.sh`
 
-**Проблема с websockify:**
-- ✅ Исправлено: websockify теперь устанавливается только из git
-- Убедитесь, что используете обновленный Dockerfile
-
-**Проблема с dbus:**
-- Ошибки dbus в логах не критичны
-- VNC работает корректно, dbus запускается внутри VNC-сессии
-
-### Проблемы с видимостью образов Podman
-
-См. раздел "Проблемы с видимостью образов Podman" в [TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)
+**Подробнее**: [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)
 
 ---
 
 ## Дополнительная информация
 
-- **Архитектура**: [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)
-- **Podman**: [docs/PODMAN_GUIDE.md](../docs/PODMAN_GUIDE.md)
-- **VNC**: [docs/VNC_GUIDE.md](../docs/VNC_GUIDE.md)
-- **Решение проблем**: [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)
-- **Настройка Astra VNC**: См. раздел "Настройка образа Astra Linux с VNC" в [docs/VNC_GUIDE.md](../docs/VNC_GUIDE.md)
+- [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) - Архитектура системы
+- [docs/PODMAN_GUIDE.md](../docs/PODMAN_GUIDE.md) - Работа с Podman
+- [docs/VNC_GUIDE.md](../docs/VNC_GUIDE.md) - Настройка VNC
+- [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) - Решение проблем

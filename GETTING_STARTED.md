@@ -147,85 +147,21 @@ sudo systemctl enable rootless-docker@<имя_пользователя>@<мет�
 
 ## Создание образов
 
-### Проверка готовности
-
-Перед созданием образов проверьте систему:
-
-```bash
-cd scripts
-./check-setup.sh
-```
-
-Скрипт проверит:
-- ✅ Установку Podman
-- ✅ Наличие необходимых файлов
-- ✅ Доступность реестра Astra Linux
-- ✅ Существующие образы
-
-### Создание базового образа
-
-Для CLI-миссий (уровни B, C):
+### Базовый образ (CLI-миссии)
 
 ```bash
 cd scripts
 ./create-astra-image.sh
 ```
 
-Создаёт образ: `localhost/astra-linux:se`
-
-### Создание образа с VNC
-
-Для GUI-миссий (уровень A):
+### Образ с VNC (GUI-миссии)
 
 ```bash
 cd scripts
 ./create-astra-image.sh --vnc
 ```
 
-**⚠️ Важно**: Базовый образ Astra Linux из реестра не содержит GUI пакетов (XFCE, TigerVNC).
-
-**Варианты**:
-
-1. **Упрощённая версия** (демонстрация)
-   - Без реального VNC
-   - Только для ознакомления со структурой
-
-2. **Debian 12 как база** (рекомендуется для тестирования)
-   - Полная поддержка VNC
-   - XFCE Desktop
-   - noVNC через браузер
-   
-3. **Полный образ Astra Linux** (если доступен)
-   - Требует доступ к полному образу с GUI пакетами
-
-**Для разработки рекомендуется**: Использовать Debian 12 или mock-режим на Windows
-
-### Параметры скрипта
-
-```bash
-./create-astra-image.sh [OPTIONS]
-
-Опции:
-  --vnc              Создать образ с VNC
-  --no-vnc           Создать базовый образ (по умолчанию)
-  --rootless         Rootless режим (по умолчанию)
-  --with-sudo        Использовать sudo
-  --help             Показать справку
-```
-
-### Проверка образов
-
-```bash
-# Список образов
-podman images
-
-# Тестовый запуск базового
-podman run --rm -it localhost/astra-linux:se /bin/bash
-
-# Тестовый запуск VNC
-podman run -d -p 5900:5900 -p 6080:6080 localhost/astra-linux:vnc
-# Откройте: http://localhost:6080/vnc.html
-```
+**Подробнее**: [docs/PODMAN_GUIDE.md](docs/PODMAN_GUIDE.md) и [docs/VNC_GUIDE.md](docs/VNC_GUIDE.md)
 
 ---
 
@@ -297,166 +233,16 @@ curl -X POST http://localhost:8000/api/v1/grader/check \
 
 ## Решение проблем
 
-### Образ не виден после создания
+Подробное руководство по решению проблем: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 
-**Проблема**: `podman images` показывает пустой список
-
-**Причина**: Образ создан в root-контексте, проверяется в rootless
-
-**Решение**:
-```bash
-# Пересоздать без sudo (рекомендуется)
-cd scripts
-./create-astra-image.sh --vnc
-
-# Или перенести существующий
-./fix-podman-images.sh
-```
-
-### Ошибка "Файл Dockerfile не найден"
-
-**Решение**: Скрипт автоматически переходит в корень проекта. Если проблема сохраняется:
-
-```bash
-# Проверьте структуру
-cd /путь/к/AstraDiplom
-ls -la images/
-
-# Запустите проверку
-cd scripts
-./check-setup.sh
-
-# Запустите из корня
-cd /путь/к/AstraDiplom
-bash scripts/create-astra-image.sh --vnc
-```
-
-### Ошибка при сборке VNC образа: "no such file or directory"
-
-**Проблема**: При сборке образа появляется ошибка `COPY start-vnc-simple.sh /usr/local/bin/start-vnc.sh: no such file or directory`
-
-**Причина**: Dockerfile использует относительные пути, которые должны быть указаны относительно контекста сборки (корня проекта).
-
-**Решение**: Все Dockerfile уже исправлены и используют правильные пути `images/start-vnc.sh` и `images/supervisord.conf`. Если ошибка повторяется:
-
-```bash
-# Убедитесь, что файлы существуют
-ls -la images/start-vnc*.sh images/supervisord*.conf
-
-# Пересоберите образ
-cd scripts
-sudo bash create-astra-image.sh --vnc
-
-# Выберите вариант 1 (упрощенный) или 2 (Debian 12)
-```
-
-### Ошибка "Не удалось загрузить образ из реестра"
-
-**Решение**:
-```bash
-# Проверьте доступность
-curl -I https://registry.astralinux.ru/
-
-# Используйте альтернативный образ
-podman pull debian:12
-podman tag debian:12 localhost/astra-linux:se
-
-# Или другой digest
-podman pull registry.astralinux.ru/library/astra/ubi18:1.8.1
-```
-
-### VNC не запускается
-
-**Проблема**: Контейнер запущен, но VNC недоступен
-
-**Решение**:
-```bash
-# Проверить логи
-podman logs <container_name>
-
-# Проверить процессы
-podman exec <container_name> ps aux | grep vnc
-
-# Подождать 30-60 секунд (первый запуск)
-
-# Перезапустить
-podman restart <container_name>
-```
-
-### Черный экран в noVNC
-
-**Причины**: VNC сервер еще запускается или XFCE не запустился
-
-**Решение**:
-```bash
-# Проверить XFCE
-podman exec <container_name> ps aux | grep xfce
-
-# Проверить X11
-podman exec <container_name> echo $DISPLAY
-
-# Перезапустить контейнер
-podman restart <container_name>
-```
+**Частые проблемы:**
+- Образ не виден после создания → Используйте `./fix-podman-images.sh` или пересоздайте без sudo
+- VNC не запускается → Проверьте логи: `podman logs <container_name>`
+- Ошибки при сборке → Убедитесь, что файлы в `images/` существуют
 
 ---
 
 ## Быстрая справка
-
-### Команды создания образов
-
-```bash
-cd scripts
-
-# Проверка
-./check-setup.sh
-
-# Базовый образ
-./create-astra-image.sh
-
-# Образ с VNC
-./create-astra-image.sh --vnc
-
-# Справка
-./create-astra-image.sh --help
-```
-
-### Проверка образов
-
-```bash
-# Список
-podman images
-
-# Тест базового
-podman run --rm -it localhost/astra-linux:se /bin/bash
-
-# Тест VNC
-podman run -d -p 5900:5900 -p 6080:6080 localhost/astra-linux:vnc
-```
-
-### Запуск приложения
-
-```bash
-# Backend
-cd backend
-source venv/bin/activate
-python run.py
-
-# Frontend (другой терминал)
-cd frontend/web
-npm start
-```
-
-### Учетные данные
-
-**VNC**:
-- Пользователь: `astrauser`
-- Пароль: `astra123`
-
-### Структура образов
-
-- `localhost/astra-linux:se` - базовый (CLI)
-- `localhost/astra-linux:vnc` - с VNC (GUI)
 
 ### Порты
 
@@ -467,87 +253,23 @@ npm start
 | 5900 | TigerVNC | VNC протокол |
 | 6080 | noVNC | WebSocket (браузер) |
 
+### Учетные данные VNC
+
+- Пользователь: `astrauser` (или `sandboxuser` в зависимости от образа)
+- Пароль: `astra123` (или `sandbox123`)
+
 ---
 
 ## Дополнительная документация
 
-### Подробные руководства
-
-- **Podman**: [docs/PODMAN_GUIDE.md](docs/PODMAN_GUIDE.md)
+- **Podman и образы**: [docs/PODMAN_GUIDE.md](docs/PODMAN_GUIDE.md)
 - **VNC**: [docs/VNC_GUIDE.md](docs/VNC_GUIDE.md)
+- **Windows и WSL**: [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md)
+- **Решение проблем**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 - **Архитектура**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **Создание миссий**: [docs/MISSIONS.md](docs/MISSIONS.md)
-
-### Установка
-
-- **Windows и WSL**: [docs/WINDOWS_DEVELOPMENT.md](docs/WINDOWS_DEVELOPMENT.md)
-- **Astra Linux**: См. раздел [Установка на Astra Linux Special Edition](#установка-на-astra-linux-special-edition) в этом документе
-
-### Решение проблем
-
-- **Общие проблемы**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
-
-### Разработка
-
-- **Вклад в проект**: [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Скрипты**: [scripts/README.md](scripts/README.md)
 
 ---
 
-## Контрольный список
-
-### Перед началом работы
-
-- [ ] Podman установлен
-- [ ] Node.js 18+ установлен
-- [ ] Python 3.10+ установлен
-- [ ] Зависимости проекта установлены
-- [ ] Образы созданы
-- [ ] Backend запущен
-- [ ] Frontend запущен
-
-### Проверка работоспособности
-
-- [ ] `podman images` показывает образы astra-linux
-- [ ] Backend доступен на http://localhost:8000
-- [ ] Frontend доступен на http://localhost:3000
-- [ ] VNC работает (для GUI-миссий)
-
----
-
-## Полезные команды
-
-```bash
-# Информация о Podman
-podman info
-
-# Список контейнеров
-podman ps -a
-
-# Логи контейнера
-podman logs <container_name>
-
-# Остановить контейнер
-podman stop <container_name>
-
-# Удалить контейнер
-podman rm <container_name>
-
-# Очистить неиспользуемые образы
-podman image prune -a
-
-# Проверка миссий
-find missions -name "mission.yaml" | wc -l
-```
-
----
-
-## Поддержка
-
-Если возникли проблемы:
-
-1. Запустите `./scripts/check-setup.sh`
-2. Проверьте документацию в `docs/`
-3. Посмотрите логи: `podman logs <container>`
-4. Создайте issue с описанием проблемы
 

@@ -31,27 +31,23 @@ cd scripts
 
 ## Создание образов
 
-### Базовый образ (без GUI)
+### Базовый образ (CLI-миссии)
 
 ```bash
 cd scripts
 ./create-astra-image.sh
 ```
 
-Создаёт образ `localhost/astra-linux:se` для CLI-миссий (уровни B и C).
+Создаёт образ `localhost/linux-base:astra` для CLI-миссий (уровни B и C).
 
-### Образ с VNC (для GUI)
+### Образ с VNC (GUI-миссии)
 
 ```bash
 cd scripts
 ./create-astra-image.sh --vnc
 ```
 
-Создаёт образ `localhost/astra-linux:vnc` с:
-- TigerVNC Server
-- noVNC (доступ через браузер)
-- XFCE Desktop
-- Автозапуск VNC
+Создаёт образ с VNC для GUI-миссий (уровень A). Подробнее: [VNC_GUIDE.md](VNC_GUIDE.md)
 
 ### Параметры скрипта
 
@@ -60,22 +56,10 @@ cd scripts
 
 Опции:
   --vnc              Создать образ с VNC поддержкой
-  --no-vnc           Создать базовый образ без VNC (по умолчанию)
-  --rootless         Использовать rootless режим (по умолчанию)
-  --with-sudo        Использовать sudo для создания
+  --no-vnc           Создать базовый образ (по умолчанию)
+  --rootless         Rootless режим (по умолчанию)
+  --with-sudo        Использовать sudo
   --help             Показать справку
-```
-
-### Альтернативные способы
-
-**Через debootstrap (требует sudo)**:
-```bash
-sudo ./create-astra-image.sh --with-sudo
-```
-
-**Из готового tar-архива**:
-```bash
-./import-astra-image.sh /path/to/image.tar
 ```
 
 ---

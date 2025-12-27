@@ -24,12 +24,19 @@ chmod 644 /var/lib/apt/lists/lock /var/cache/apt/archives/lock || true
 chmod 640 /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock || true
 
 # Обновляем кэш пакетов при запуске контейнера (если кэш пустой)
+# Делаем это асинхронно в фоне, чтобы не блокировать запуск VNC
 # Проверяем наличие файлов списков пакетов (не считая lock и partial)
 if [ -z "$(ls -A /var/lib/apt/lists 2>/dev/null | grep -v '^lock$' | grep -v '^partial$')" ]; then
-    echo "Инициализация кэша пакетов для Synaptic..." >&2
-    apt-get update > /dev/null 2>&1 || true
-    # Генерируем кэш для Synaptic
-    apt-cache gencaches > /dev/null 2>&1 || true
+    # Запускаем инициализацию кэша в фоне
+    (
+        echo "Инициализация кэша пакетов для Synaptic (в фоне)..." >&2
+        apt-get update > /dev/null 2>&1 || true
+        # Генерируем кэш для Synaptic (тоже в фоне)
+        apt-cache gencaches > /dev/null 2>&1 || true
+        echo "Инициализация кэша пакетов завершена" >&2
+    ) &
+    APT_CACHE_INIT_PID=$!
+    # Не ждем завершения, продолжаем запуск VNC
 fi
 
 # Start Xvfb
@@ -94,6 +101,7 @@ export DISPLAY=:1
 fly-wm > /dev/null 2>&1 &
 FLY_PID=$!
 
-# Wait for all processes
+# Ждем завершения всех критических процессов
+# apt-cache инициализация запущена в фоне и не блокирует
 wait
 

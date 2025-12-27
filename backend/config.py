@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # VNC/noVNC настройки
     VNC_PORT_START: int = 5900
     NOVNC_PORT_START: int = 6080
-    VNC_PASSWORD: str = "sandbox123"  # TODO: генерировать случайно
+    VNC_PASSWORD: str = "sandbox123"
     VNC_RESOLUTION: str = "1280x720"
     
     # API настройки

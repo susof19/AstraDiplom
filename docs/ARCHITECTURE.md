@@ -129,7 +129,7 @@ GUI-образы добавляют графический интерфейс и
 ```
 images/
 ├── Dockerfile.gui-vnc          # Универсальный GUI образ (заменяет Dockerfile.astra-vnc)
-├── Dockerfile.base             # Базовый CLI образ (TODO)
+├── Dockerfile.base             # Базовый CLI образ
 ├── supervisord.conf            # Конфигурация supervisor для VNC
 ├── start-vnc.sh                # Скрипт запуска VNC
 └── ...

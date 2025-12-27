@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from backend.sandbox.container import ContainerSandbox
 from backend.config import settings
 
-# Импорт mock-реализации для режима разработки
 if settings.MOCK_SANDBOX:
     from backend.sandbox.mock_sandbox import MockSandbox
 
@@ -24,18 +23,15 @@ class SandboxManager:
     async def create_sandbox(self, mission_id: str, level: str, image: str = None, use_vnc: bool = True, distro: str = None) -> Optional[ContainerSandbox]:
         """Создать новую песочницу для миссии"""
         logger.info(f"Создание песочницы: mission_id={mission_id}, level={level}, image={image}, use_vnc={use_vnc}, distro={distro}")
-        # Проверяем, нет ли уже активной песочницы для этой миссии
         existing = self.sandboxes.get(mission_id)
         if existing and existing.status == "running":
             logger.warning(f"Песочница для миссии {mission_id} уже существует, удаляем старую перед созданием новой")
             await existing.remove()
         
-        # Удаляем старую, если есть (на случай если статус не running)
         if existing:
             await existing.remove()
             logger.info(f"Старая песочница для миссии {mission_id} удалена")
         
-        # Создаём новую (используем mock в режиме разработки)
         if settings.MOCK_SANDBOX:
             sandbox = MockSandbox(mission_id, level, image, use_vnc)
         else:
@@ -46,7 +42,6 @@ class SandboxManager:
         logger.info(f"[MANAGER] Результат sandbox.create(): {create_result}")
         
         if create_result:
-            # Для GUI миссий ждём готовности VNC
             if use_vnc and (level.upper() in ["A", "B"] or sandbox.use_vnc):
                 logger.info(f"Ожидание запуска VNC сервера для миссии {mission_id}...")
                 vnc_ready = await sandbox.wait_for_vnc(timeout=60)
@@ -77,14 +72,12 @@ class SandboxManager:
         """Очистка истёкших песочниц"""
         while True:
             try:
-                await asyncio.sleep(60)  # Проверка каждую минуту
+                await asyncio.sleep(60)
                 
                 now = datetime.now()
                 expired = []
                 
                 for mission_id, sandbox in list(self.sandboxes.items()):
-                    # TODO: добавить отслеживание времени создания
-                    # Пока просто проверяем статус
                     if sandbox.status in ["stopped", "removed"]:
                         expired.append(mission_id)
                 
@@ -101,6 +94,5 @@ class SandboxManager:
             self._cleanup_task = asyncio.create_task(self.cleanup_expired())
 
 
-# Глобальный менеджер
 sandbox_manager = SandboxManager()
 

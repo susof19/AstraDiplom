@@ -96,51 +96,24 @@ Browser → noVNC (HTML5) → websockify → TigerVNC → XFCE Desktop
 
 ## Создание образа с VNC
 
-### Автоматическое создание
-
 ```bash
 cd scripts
 ./create-astra-image.sh --vnc
 ```
 
-Скрипт создаёт образ `localhost/astra-linux:vnc` с предустановленными:
-- ✅ TigerVNC Server
-- ✅ noVNC
-- ✅ websockify
-- ✅ XFCE Desktop (или Fly Desktop для Astra Linux)
-- ✅ Supervisor (автозапуск)
-
-### Настройка образа Astra Linux с VNC
-
-**Вариант 1: Использование готового образа из репозитория**
-
-Если доступен готовый образ из репозитория [shinbatsu/astra-ui-vnc-container](https://github.com/shinbatsu/astra-ui-vnc-container):
-
-```bash
-./scripts/setup-astra-vnc-image.sh
-```
-
-**⚠️ Важное замечание**: Репозиторий использует приватный базовый образ `astra-fly:v1.7.6`, который может быть недоступен. В этом случае используйте Вариант 2.
-
-**Вариант 2: Использование собственного Dockerfile (рекомендуется)**
-
-```bash
-./scripts/create-astra-image.sh --vnc
-# Выберите вариант 5: Astra Linux (из реестра, если доступен)
-```
-
-Это создаст образ `localhost/linux-gui-vnc:astra` с использованием официального реестра Astra Linux.
+Скрипт создаёт образ с предустановленными:
+- TigerVNC Server
+- noVNC (HTML5 VNC клиент)
+- websockify (WebSocket прокси)
+- XFCE Desktop (или Fly Desktop для Astra Linux)
+- Supervisor (автозапуск)
 
 **Особенности образа Astra Linux с VNC**:
-- **Порт noVNC**: Образ использует порт `80` для noVNC внутри контейнера (вместо стандартного `6080`)
-- **Путь noVNC**: noVNC доступен по корневому пути `/` (вместо `/vnc.html`)
-- **Window Manager**: Использует Fly window manager (легковесный оконный менеджер)
-- **VNC**: Встроенный VNC сервер с noVNC клиентом
+- Порт noVNC: `80` внутри контейнера (вместо стандартного `6080`)
+- Путь noVNC: корневой путь `/` (вместо `/vnc.html`)
+- Window Manager: Fly window manager для Astra Linux
 
-**Автоматическая адаптация**: Код автоматически определяет, что используется образ `astra-vnc`, и:
-- Пробрасывает порт `80` вместо `6080` для noVNC
-- Использует корневой путь `/` для noVNC URL
-- Настраивает все параметры автоматически
+**Подробнее о создании образов**: [PODMAN_GUIDE.md](PODMAN_GUIDE.md)
 
 ### Что включено
 

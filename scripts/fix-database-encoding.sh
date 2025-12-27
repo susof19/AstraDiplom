@@ -1,9 +1,6 @@
 #!/bin/bash
 # Скрипт для исправления кодировки базы данных PostgreSQL
-# Используется для решения проблемы UnicodeDecodeError
-# Использует TCP подключение через localhost (как в backend)
-
-# Не используем set -e, чтобы обработать ошибки вручную
+# Использует тот же метод подключения, что и backend (TCP через localhost)
 
 echo "🔧 Исправление кодировки базы данных PostgreSQL"
 echo "=================================================="
@@ -19,37 +16,23 @@ fi
 echo "🔍 Проверка статуса PostgreSQL..."
 if ! pg_isready -h localhost -U postgres &>/dev/null; then
     echo "⚠️  PostgreSQL не запущен, пытаемся запустить..."
-    
     if command -v service &> /dev/null; then
         sudo service postgresql start 2>/dev/null || {
-            echo "❌ Не удалось запустить PostgreSQL через service"
+            echo "❌ Не удалось запустить PostgreSQL"
             echo "💡 Попробуйте вручную: sudo service postgresql start"
             exit 1
         }
-    elif command -v systemctl &> /dev/null; then
-        sudo systemctl start postgresql 2>/dev/null || {
-            echo "❌ Не удалось запустить PostgreSQL через systemctl"
-            echo "💡 Попробуйте вручную: sudo systemctl start postgresql"
-            exit 1
-        }
-    else
-        echo "❌ Не найден способ запуска PostgreSQL (service или systemctl)"
-        echo "💡 Запустите PostgreSQL вручную и повторите попытку"
-        exit 1
-    fi
-    
-    echo "⏳ Ожидание запуска PostgreSQL..."
-    sleep 3
-    
-    # Проверяем еще раз
-    if ! pg_isready -h localhost -U postgres &>/dev/null; then
-        echo "❌ PostgreSQL все еще не отвечает"
-        echo "💡 Проверьте логи: sudo tail -f /var/log/postgresql/postgresql-*-main.log"
-        exit 1
+        sleep 3
     fi
 fi
 
-echo "✅ PostgreSQL запущен и доступен через TCP (localhost:5432)"
+if ! pg_isready -h localhost -U postgres &>/dev/null; then
+    echo "❌ PostgreSQL не отвечает на localhost:5432"
+    echo "💡 Проверьте, что PostgreSQL запущен и слушает на localhost"
+    exit 1
+fi
+
+echo "✅ PostgreSQL запущен и доступен"
 echo ""
 
 echo "⚠️  ВНИМАНИЕ: Этот скрипт пересоздаст базу данных trainer_db"
@@ -63,61 +46,74 @@ if [ "$confirm" != "yes" ]; then
 fi
 
 echo ""
-echo "📋 Шаги исправления:"
-echo "   1. Закрытие всех подключений к базе данных"
-echo "   2. Удаление старой базы данных"
-echo "   3. Создание новой базы данных с кодировкой UTF-8"
+echo "📋 Выполнение операций через TCP (localhost:5432)..."
 echo ""
 
-# Закрытие всех подключений к базе данных
+# Функция для выполнения SQL команд
+execute_sql() {
+    local sql_command="$1"
+    if PGPASSWORD='' psql -h localhost -U postgres -d postgres -c "$sql_command" 2>/dev/null; then
+        return 0
+    elif sudo -u postgres psql -h localhost -d postgres -c "$sql_command" 2>/dev/null; then
+        return 0
+    else
+        sudo -u postgres psql -d postgres -c "$sql_command" 2>/dev/null
+        return $?
+    fi
+}
+
+# Закрытие подключений
 echo "🔌 Закрытие подключений к базе данных..."
-# Используем sudo -u postgres с указанием хоста (обходит проблему с паролем)
-sudo -u postgres psql -h localhost -d postgres << 'EOF' 2>/dev/null || true
-SELECT pg_terminate_backend(pid)
-FROM pg_stat_activity
-WHERE datname = 'trainer_db' AND pid <> pg_backend_pid();
-EOF
+execute_sql "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'trainer_db' AND pid <> pg_backend_pid();" || true
 
-# Удаление старой базы данных
+# Удаление базы данных
 echo "🗑️  Удаление старой базы данных..."
-sudo -u postgres psql -h localhost -d postgres << 'EOF' 2>/dev/null || true
-DROP DATABASE IF EXISTS trainer_db;
-EOF
+execute_sql "DROP DATABASE IF EXISTS trainer_db;" || true
 
-# Создание пользователя (если не существует)
-echo "👤 Создание пользователя trainer_user..."
-sudo -u postgres psql -h localhost -d postgres << 'EOF' 2>/dev/null || true
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'trainer_user') THEN
-        CREATE USER trainer_user WITH PASSWORD 'trainer_password';
-    END IF;
-END
-$$;
-EOF
-
-# Создание новой базы данных с правильной кодировкой
+# Создание новой базы данных
 echo "📦 Создание новой базы данных с кодировкой UTF-8..."
-echo "   Используется подключение через TCP (localhost:5432)"
 
-# Создаем базу данных с кодировкой UTF-8 без указания локали
-# ENCODING 'UTF8' гарантирует правильную кодировку независимо от локали
-echo "   Создаем базу данных с кодировкой UTF-8 (без указания локали)"
-sudo -u postgres psql -h localhost -d postgres << 'EOF'
+SUCCESS=0
+
+if PGPASSWORD='' psql -h localhost -U postgres -d postgres << 'EOF' 2>/dev/null; then
 CREATE DATABASE trainer_db 
     OWNER trainer_user 
-    ENCODING 'UTF8'
+    ENCODING 'UTF8' 
+    LC_COLLATE='C' 
+    LC_CTYPE='C'
     TEMPLATE template0;
 GRANT ALL PRIVILEGES ON DATABASE trainer_db TO trainer_user;
 EOF
+    SUCCESS=1
+elif sudo -u postgres psql -h localhost -d postgres << 'EOF' 2>/dev/null; then
+CREATE DATABASE trainer_db 
+    OWNER trainer_user 
+    ENCODING 'UTF8' 
+    LC_COLLATE='C' 
+    LC_CTYPE='C'
+    TEMPLATE template0;
+GRANT ALL PRIVILEGES ON DATABASE trainer_db TO trainer_user;
+EOF
+    SUCCESS=1
+elif sudo -u postgres psql -d postgres << 'EOF' 2>/dev/null; then
+CREATE DATABASE trainer_db 
+    OWNER trainer_user 
+    ENCODING 'UTF8' 
+    LC_COLLATE='C' 
+    LC_CTYPE='C'
+    TEMPLATE template0;
+GRANT ALL PRIVILEGES ON DATABASE trainer_db TO trainer_user;
+EOF
+    SUCCESS=1
+fi
 
-if [ $? -ne 0 ]; then
-    echo "❌ Ошибка при создании базы данных"
+if [ $SUCCESS -eq 0 ]; then
+    echo "❌ Не удалось создать базу данных автоматически"
     echo ""
     echo "💡 Выполните команды вручную:"
     echo ""
-    echo "   sudo -u postgres psql -h localhost"
-    echo "   CREATE DATABASE trainer_db OWNER trainer_user ENCODING 'UTF8' TEMPLATE template0;"
+    echo "   PGPASSWORD='' psql -h localhost -U postgres"
+    echo "   CREATE DATABASE trainer_db OWNER trainer_user ENCODING 'UTF8' LC_COLLATE='C' LC_CTYPE='C' TEMPLATE template0;"
     echo "   GRANT ALL PRIVILEGES ON DATABASE trainer_db TO trainer_user;"
     echo "   \\q"
     exit 1
@@ -134,3 +130,4 @@ echo "      python init_db.py"
 echo ""
 echo "   2. Перезапустите backend"
 echo ""
+
