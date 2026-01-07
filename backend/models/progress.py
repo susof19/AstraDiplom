@@ -17,6 +17,7 @@ class UserProgress:
         self.total_score: int = 0
         self.level_progress: Dict[str, int] = {"A": 0}
         self.achievements: List[str] = []
+        self.user_data: Dict[str, Any] = {}  # Дополнительные данные пользователя (настройки и т.д.)
         self.last_updated: Optional[datetime] = None
         
     def load(self):
@@ -29,6 +30,7 @@ class UserProgress:
                     self.total_score = data.get("total_score", 0)
                     self.level_progress = data.get("level_progress", {"A": 0})
                     self.achievements = data.get("achievements", [])
+                    self.user_data = data.get("user_data", {})
                     if data.get("last_updated"):
                         self.last_updated = datetime.fromisoformat(data["last_updated"])
             except Exception as e:
@@ -44,6 +46,7 @@ class UserProgress:
             "total_score": self.total_score,
             "level_progress": self.level_progress,
             "achievements": self.achievements,
+            "user_data": self.user_data,
             "last_updated": datetime.now().isoformat()
         }
         

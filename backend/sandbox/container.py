@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 
 def _get_host_ip() -> str:
     """Получить IP адрес хоста для доступа из локальной сети"""
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-            return ip
-        except Exception:
-            return "localhost"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "localhost"
 
 
 def _detect_container_command() -> str:

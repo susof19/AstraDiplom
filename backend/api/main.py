@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 import logging
 
 from backend.config import settings
-from backend.api.routes import missions, sandbox, grader, progress, auth, admin
+from backend.api.routes import missions, sandbox, grader, progress, auth, admin, hints
 from backend.sandbox.manager import sandbox_manager
 from backend.models.user_db import User  # noqa: F401
 
@@ -39,6 +39,8 @@ app.include_router(progress.router, prefix=settings.API_PREFIX, tags=["progress"
 logger.info(f"   ✅ Progress роуты зарегистрированы: {settings.API_PREFIX}/progress")
 app.include_router(admin.router, prefix=f"{settings.API_PREFIX}/admin", tags=["admin"])
 logger.info(f"   ✅ Admin роуты зарегистрированы: {settings.API_PREFIX}/admin")
+app.include_router(hints.router, prefix=settings.API_PREFIX, tags=["hints"])
+logger.info(f"   ✅ Hints роуты зарегистрированы: {settings.API_PREFIX}/hints")
 logger.info("✅ Все роуты зарегистрированы")
 
 

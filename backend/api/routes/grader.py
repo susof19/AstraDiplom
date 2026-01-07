@@ -6,6 +6,7 @@ from backend.grader.checker import Grader
 from backend.sandbox.manager import sandbox_manager
 from backend.models.progress import get_user_progress
 from backend.auth.dependencies import get_current_user
+from backend.hints.hint_system import get_hint_system
 
 router = APIRouter()
 
@@ -35,6 +36,20 @@ async def check_mission(
     logger.info(f"Проверка миссии {mission_id} уровня {level}")
     
     result = await Grader.grade_mission(mission_id, level, sandbox)
+    
+    # Отслеживаем результат проверки для системы подсказок
+    try:
+        hint_system = get_hint_system()
+        is_passed = result.get("result") == "passed" or (result.get("result") == "partial" and result.get("score", 0) >= 70)
+        hint_system.track_and_learn(
+            username=username,
+            mission_id=mission_id,
+            level=level,
+            check_result=result,
+            success=is_passed
+        )
+    except Exception as e:
+        logger.warning(f"Ошибка отслеживания действий для подсказок: {e}")
     
     # Автоматически останавливаем песочницу после проверки
     try:

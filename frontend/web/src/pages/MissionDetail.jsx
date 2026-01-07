@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getMission, createSandbox, checkMission, getSandbox, stopSandbox, getMissions } from '../api/missions'
 import SandboxViewer from '../components/SandboxViewer'
 import GradingResult from '../components/GradingResult'
-import HintsSection from '../components/HintsSection'
+import HintsPanel from '../components/HintsPanel'
 import './MissionDetail.css'
 import { useState, useMemo } from 'react'
 
@@ -142,9 +142,13 @@ function MissionDetail() {
           </ul>
         </div>
 
-        {mission.hints && mission.hints.length > 0 && (
-          <HintsSection hints={mission.hints} />
-        )}
+        {/* Панель подсказок - показывается всегда, если включена */}
+        <HintsPanel 
+          missionId={missionId}
+          checkResult={gradingResult}
+          sandbox={sandbox}
+          mission={mission}
+        />
 
         <div className="actions">
           {sandbox && sandbox.status === 'running' ? (
