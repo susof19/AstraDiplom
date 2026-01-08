@@ -22,7 +22,7 @@ class RuleBasedHintSystem:
             # Ошибки файловой системы
             {
                 "pattern": r"No such file or directory",
-                "hint": "Файл или директория не найдены. Проверьте путь командой 'ls' или 'pwd'.",
+                "hint": "Файл или директория не найдены. Проверьте путь через файловый менеджер.",
                 "category": "file_system",
                 "priority": 1
             },
@@ -85,13 +85,13 @@ class RuleBasedHintSystem:
             {
                 "check_type": "file_exists",
                 "expected": True,
-                "hint": "Файл не найден. Создайте файл или проверьте правильность пути.",
+                "hint": "Файл не найден. Откройте файловый менеджер, перейдите в нужную папку и создайте файл (правый клик → Создать → Документ).",
                 "category": "mission_check",
                 "priority": 1
             },
             {
                 "check_type": "file_content",
-                "hint": "Содержимое файла не соответствует ожидаемому. Проверьте содержимое командой 'cat <файл>'.",
+                "hint": "Содержимое файла не соответствует ожидаемому. Откройте файл в текстовом редакторе и проверьте содержимое.",
                 "category": "mission_check",
                 "priority": 1
             },
@@ -108,18 +108,27 @@ class RuleBasedHintSystem:
         error_message: str,
         command: Optional[str] = None,
         check_result: Optional[Dict[str, Any]] = None,
-        mission_id: Optional[str] = None
+        mission_id: Optional[str] = None,
+        level: Optional[str] = None
     ) -> Optional[str]:
         """Получить подсказку для ошибки"""
         hints = []
+        
+        # Определяем уровень пользователя
+        level_upper = (level or "A").upper() if level else "A"
+        is_level_a = level_upper == "A"
         
         # Поиск по паттернам в сообщении об ошибке
         if error_message:
             for rule in self.rules:
                 if "pattern" in rule:
                     if re.search(rule["pattern"], error_message, re.IGNORECASE):
+                        hint_text = rule["hint"]
+                        # Для уровня A заменяем терминальные команды на GUI подсказки
+                        if is_level_a:
+                            hint_text = self._convert_to_gui_hint(hint_text, rule.get("pattern", ""), error_message, level)
                         hints.append({
-                            "hint": rule["hint"],
+                            "hint": hint_text,
                             "priority": rule.get("priority", 1),
                             "category": rule.get("category", "general")
                         })
@@ -129,17 +138,22 @@ class RuleBasedHintSystem:
             check_type = check_result.get("type")
             for rule in self.rules:
                 if rule.get("check_type") == check_type:
+                    hint_text = rule["hint"]
+                    # Для уровня A заменяем терминальные команды на GUI подсказки
+                    if is_level_a:
+                        hint_text = self._convert_to_gui_hint(hint_text, check_type, error_message or "", level)
+                    
                     # Проверяем дополнительные условия
                     if "expected" in rule:
                         if check_result.get("expected") == rule["expected"]:
                             hints.append({
-                                "hint": rule["hint"],
+                                "hint": hint_text,
                                 "priority": rule.get("priority", 1),
                                 "category": rule.get("category", "mission_check")
                             })
                     else:
                         hints.append({
-                            "hint": rule["hint"],
+                            "hint": hint_text,
                             "priority": rule.get("priority", 1),
                             "category": rule.get("category", "mission_check")
                         })
@@ -247,7 +261,7 @@ class RuleBasedHintSystem:
         
         return hints
     
-    def get_hints_for_failed_checks(self, check_results: List[Dict[str, Any]]) -> List[str]:
+    def get_hints_for_failed_checks(self, check_results: List[Dict[str, Any]], level: Optional[str] = None) -> List[str]:
         """Получить подсказки для всех проваленных проверок"""
         hints = []
         
@@ -255,10 +269,55 @@ class RuleBasedHintSystem:
             if not check.get("passed", False):
                 hint = self.get_hint_for_error(
                     error_message=check.get("message", ""),
-                    check_result=check
+                    check_result=check,
+                    level=level
                 )
                 if hint:
                     hints.append(hint)
         
         return hints
+    
+    def _convert_to_gui_hint(self, hint_text: str, pattern: str, error_message: str, level: Optional[str] = None) -> str:
+        """Преобразовать подсказку с командами терминала в GUI подсказку для уровня A"""
+        level_upper = (level or "A").upper() if level else "A"
+        is_level_a = level_upper == "A"
+        
+        # Замены для уровня A
+        gui_replacements = {
+            r"командой 'ls'": "через файловый менеджер (откройте нужную папку)",
+            r"командой 'pwd'": "посмотрев путь в адресной строке файлового менеджера",
+            r"командой 'cat'": "открыв файл в текстовом редакторе",
+            r"командой 'which'": "найдя программу в меню приложений",
+            r"командой 'ls -l'": "через свойства файла (правый клик → Свойства)",
+            r"'ls'": "в файловом менеджере",
+            r"'pwd'": "в адресной строке",
+            r"'cat'": "в текстовом редакторе",
+            r"'sudo'": "использовав кнопку 'Запуск от имени администратора' (правый клик)",
+            r"'cp'": "через копирование (Ctrl+C) и вставку (Ctrl+V) или перетаскивание",
+            r"'mv'": "перетащив файл в нужную папку",
+            r"'rm'": "через удаление (правый клик → Удалить или клавиша Delete)",
+            r"'mkdir'": "правым кликом → Создать папку",
+            r"'rmdir'": "удалив пустую папку",
+            r"'chmod'": "через Свойства файла → Права доступа",
+            r"'find'": "используя поиск в файловом менеджере (Ctrl+F)",
+            r"'grep'": "используя поиск в текстовом редакторе (Ctrl+F)",
+            r"'tar'": "используя архивный менеджер или распаковку архива"
+        }
+        
+        if is_level_a:
+            converted_hint = hint_text
+            for pattern, replacement in gui_replacements.items():
+                converted_hint = re.sub(pattern, replacement, converted_hint, flags=re.IGNORECASE)
+            
+            # Общие улучшения для GUI
+            if "Файл или директория не найдены" in converted_hint:
+                return "Файл или папка не найдены. Проверьте путь в файловом менеджере или поищите файл через поиск (Ctrl+F)."
+            if "Файл не найден" in converted_hint and "команда" not in converted_hint.lower():
+                return "Файл не найден. Откройте файловый менеджер и проверьте правильность пути или создайте файл."
+            if "Недостаточно прав доступа" in converted_hint:
+                return "Недостаточно прав доступа. Попробуйте использовать опцию 'Запуск от имени администратора' (правый клик на файле)."
+            
+            return converted_hint
+        
+        return hint_text
 

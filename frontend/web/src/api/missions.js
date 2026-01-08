@@ -18,7 +18,7 @@ export const createSandbox = async (missionId, level, distro = null) => {
     mission_id: missionId,
     level,
     distro: distro, // Опционально: debian, ubuntu, astra
-    use_vnc: level.toUpperCase() === 'A' || level.toUpperCase() === 'B' // VNC для уровней A и B
+    use_vnc: level.toUpperCase() === 'A' // VNC только для уровня A, для B используется SSH
   })
   return response.data
 }

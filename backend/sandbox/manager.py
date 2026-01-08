@@ -22,15 +22,20 @@ class SandboxManager:
         
     async def create_sandbox(self, mission_id: str, level: str, image: str = None, use_vnc: bool = True, distro: str = None) -> Optional[ContainerSandbox]:
         """Создать новую песочницу для миссии"""
-        logger.info(f"Создание песочницы: mission_id={mission_id}, level={level}, image={image}, use_vnc={use_vnc}, distro={distro}")
+        logger.info(f"[MANAGER] === Создание песочницы: mission_id={mission_id}, level={level}, image={image}, use_vnc={use_vnc}, distro={distro} ===")
         existing = self.sandboxes.get(mission_id)
-        if existing and existing.status == "running":
-            logger.warning(f"Песочница для миссии {mission_id} уже существует, удаляем старую перед созданием новой")
-            await existing.remove()
-        
         if existing:
-            await existing.remove()
-            logger.info(f"Старая песочница для миссии {mission_id} удалена")
+            logger.info(f"[MANAGER] Найдена существующая песочница для {mission_id}, status={existing.status}, удаляем...")
+            try:
+                await existing.remove()
+                logger.info(f"[MANAGER] ✅ Старая песочница для {mission_id} удалена")
+            except Exception as e:
+                logger.warning(f"[MANAGER] Ошибка при удалении старой песочницы: {e}")
+            finally:
+                # Удаляем из словаря в любом случае
+                if mission_id in self.sandboxes:
+                    del self.sandboxes[mission_id]
+                    logger.info(f"[MANAGER] Песочница {mission_id} удалена из менеджера")
         
         if settings.MOCK_SANDBOX:
             sandbox = MockSandbox(mission_id, level, image, use_vnc)

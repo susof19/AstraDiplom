@@ -128,6 +128,33 @@ class MissionChecker:
         
         logger.info(f"Проверка миссии {self.mission_id} завершена: {passed}/{len(checks)} проверок пройдено, {earned_points}/{total_points} баллов, оценка: {score}%")
         
+        # Если rule-based проверка не пройдена, используем ML evaluator для оценки по смыслу
+        ml_evaluation = None
+        if result != CheckResult.PASSED:
+            try:
+                from backend.grader.ml_evaluator import get_ml_evaluator
+                ml_evaluator = get_ml_evaluator()
+                
+                # Загружаем конфигурацию миссии для ML evaluator
+                mission_config = await self.load_mission_config()
+                if mission_config:
+                    ml_evaluation = await ml_evaluator.evaluate(
+                        mission_id=self.mission_id,
+                        mission_config=mission_config,
+                        check_results=results,
+                        sandbox_context=None  # Можно добавить контекст из sandbox
+                    )
+                    
+                    # Если ML считает, что миссия выполнена по смыслу, переопределяем результат
+                    if ml_evaluation.get("should_override", False):
+                        ml_score = int(ml_evaluation["score"] * 100)
+                        if ml_score >= 70:
+                            result = CheckResult.PARTIAL
+                            score = ml_score
+                            logger.info(f"ML evaluator переопределил результат: score={ml_score}%, reason={ml_evaluation.get('reason', '')}")
+            except Exception as e:
+                logger.warning(f"Ошибка ML evaluation: {e}", exc_info=True)
+        
         return {
             "result": result.value,
             "score": score,
@@ -136,7 +163,8 @@ class MissionChecker:
                 "total": total_points
             },
             "message": f"Выполнено {passed} из {len(checks)} проверок ({earned_points}/{total_points} баллов)",
-            "checks": results
+            "checks": results,
+            "ml_evaluation": ml_evaluation  # Добавляем ML оценку в результат
         }
     
     async def _run_check(self, check: Dict[str, Any], sandbox: ContainerSandbox) -> Dict[str, Any]:

@@ -47,6 +47,10 @@ function MissionDetail() {
     mutationFn: () => createSandbox(missionId, mission?.level),
     onSuccess: () => {
       queryClient.invalidateQueries(['sandbox', missionId])
+    },
+    onError: (error) => {
+      console.error('Ошибка создания песочницы:', error)
+      alert(`Ошибка создания песочницы: ${error.response?.data?.detail || error.message}`)
     }
   })
 

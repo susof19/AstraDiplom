@@ -1,38 +1,29 @@
-name: "Копирование файла"
-description: "Скопируйте файл photo.jpg из папки Downloads в папку Documents"
-level: "A"
+name: Копирование файла
+description: Скопируйте файл photo.jpg из папки Downloads в папку Documents
+level: A
 difficulty: 1
 estimated_time: 5
-
 objectives:
-  - "Открыть файловый менеджер"
-  - "Найти файл photo.jpg в папке Downloads"
-  - "Скопировать файл в папку Documents"
-
+- Открыть файловый менеджер
+- Найти файл photo.jpg в папке Downloads
+- Скопировать файл в папку Documents
 hints:
-  - "Откройте файловый менеджер через Меню → Файловый менеджер"
-  - "Или дважды кликните на иконку 'Домашняя папка' на рабочем столе"
-  - "Папка Downloads (~/Downloads) находится в вашей домашней директории"
-  - "Папка Documents (~/Documents) находится в вашей домашней директории"
-  - "Используйте Ctrl+C для копирования и Ctrl+V для вставки"
-
+- Откройте файловый менеджер через Меню → Файловый менеджер
+- Или дважды кликните на иконку 'Домашняя папка' на рабочем столе
+- Папка Downloads (~/Downloads) находится в вашей домашней директории
+- Папка Documents (~/Documents) находится в вашей домашней директории
+- Используйте Ctrl+C для копирования и Ctrl+V для вставки
 setup:
-  # Создаём необходимые директории (путь будет автоматически заменён на реального пользователя)
-  # Для root: /root/Downloads, /root/Documents
-  # Для других пользователей: /home/username/Downloads, /home/username/Documents
   directories:
-    - "/root/Downloads"
-    - "/root/Documents"
-  # Копируем файл из папки миссии
+  - /root/Downloads
+  - /root/Documents
   files:
-    - path: "/root/Downloads/photo.jpg"
-      source: "photo.jpg"  # Копируем из /mission/photo.jpg
-      mode: "644"
-
+  - path: /root/Downloads/photo.jpg
+    source: photo.jpg
+    mode: '644'
 checks:
-  - name: "Файл скопирован в Documents"
-    type: "file_exists"
-    path: "/root/Documents/photo.jpg"
-    file_type: "file"
-    points: 100
-
+- name: Файл скопирован в Documents
+  type: file_exists
+  path: /root/Documents/photo.jpg
+  file_type: file
+  points: 100

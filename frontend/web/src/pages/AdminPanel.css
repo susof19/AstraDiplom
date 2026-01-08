@@ -246,7 +246,7 @@
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: white;
+  color: white !important;
 }
 
 .form-group input,
@@ -258,7 +258,7 @@
   border-radius: 6px;
   font-size: 0.95rem;
   font-family: 'Courier New', monospace;
-  color: var(--text-primary);
+  color: #2d2d2d;
 }
 
 .form-group input:focus,

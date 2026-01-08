@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getSandbox } from '../api/missions'
+import TerminalViewer from './TerminalViewer'
 import './SandboxViewer.css'
 
 const LOADING_STAGES = {
@@ -34,6 +35,18 @@ const LOADING_STAGES = {
     icon: '🔗',
     description: 'Установка соединения'
   },
+  SSH_STARTING: { 
+    id: 'ssh_starting', 
+    label: 'Запуск SSH сервера...', 
+    icon: '🔐',
+    description: 'Инициализация SSH сервиса'
+  },
+  SSH_READY: { 
+    id: 'ssh_ready', 
+    label: 'Подключение к терминалу...', 
+    icon: '🔗',
+    description: 'Установка соединения'
+  },
   READY: { 
     id: 'ready', 
     label: 'Готово', 
@@ -50,7 +63,9 @@ function replaceLocalhostWithHostname(url) {
 function SandboxViewer({ missionId, level, isCreating = false }) {
   const iframeRef = useRef(null)
   const [vncReady, setVncReady] = useState(false)
+  const [sshReady, setSshReady] = useState(false)
   const [vncError, setVncError] = useState(null)
+  const [sshError, setSshError] = useState(null)
   const [loadingStage, setLoadingStage] = useState(null)
   const [connectionTimeout, setConnectionTimeout] = useState(false)
   const [showIframe, setShowIframe] = useState(false) // Задержка перед показом iframe
@@ -60,8 +75,17 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     queryFn: () => getSandbox(missionId),
     enabled: !!missionId,
     refetchInterval: (query) => {
-      if (isCreating || (query.state.data && !vncReady && (level === 'A' || level === 'B'))) {
+      if (isCreating) {
         return 2000
+      }
+      if (query.state.data) {
+        if (level === 'A' && !vncReady) {
+          return 2000
+        }
+        if (level === 'B' && !query.state.data.ssh_port) {
+          return 2000
+        }
+        // Для Level B продолжаем опрашивать, пока SSH не готов (управляется через useEffect)
       }
       return 5000
     }
@@ -79,13 +103,22 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     }
     
     if (sandbox.container_id) {
-      if (level === 'A' || level === 'B') {
+      if (level === 'A') {
         if (!sandbox.vnc_port) {
           setLoadingStage(LOADING_STAGES.INITIALIZING)
         } else if (!sandbox.novnc_port) {
           setLoadingStage(LOADING_STAGES.VNC_STARTING)
         } else if (!vncReady) {
           setLoadingStage(LOADING_STAGES.VNC_READY)
+        } else {
+          setLoadingStage(LOADING_STAGES.READY)
+        }
+      } else if (level === 'B') {
+        if (!sandbox.ssh_port) {
+          setLoadingStage(LOADING_STAGES.INITIALIZING)
+        } else if (!sshReady) {
+          // Проверяем, готов ли SSH сервер
+          setLoadingStage(LOADING_STAGES.SSH_STARTING)
         } else {
           setLoadingStage(LOADING_STAGES.READY)
         }
@@ -97,10 +130,11 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     } else {
       setLoadingStage(LOADING_STAGES.CREATING)
     }
-  }, [sandbox, isCreating, vncReady, level])
+  }, [sandbox, isCreating, vncReady, sshReady, level])
 
+  // Отслеживание готовности VNC для Level A
   useEffect(() => {
-    if (sandbox?.novnc_port && sandbox?.vnc_url) {
+    if (level === 'A' && sandbox?.novnc_port && sandbox?.vnc_url) {
       let retryCount = 0
       const maxRetries = 90
       let connectionCheckInterval = null
@@ -112,8 +146,9 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
           if (retryCount >= 15) {
             setVncReady(true)
             setVncError(null)
-            setLoadingStage(LOADING_STAGES.READY)
+            setLoadingStage(LOADING_STAGES.VNC_READY)
             setTimeout(() => {
+              setLoadingStage(LOADING_STAGES.READY)
               setShowIframe(true)
             }, 2000)
             retryCount = 0
@@ -145,19 +180,81 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
         if (connectionCheckInterval) clearInterval(connectionCheckInterval)
         retryCount = 0
       }
-    } else {
+    } else if (level === 'A') {
       setVncReady(false)
       setVncError(null)
-      setLoadingStage(null)
       setConnectionTimeout(false)
       setShowIframe(false)
     }
-  }, [sandbox, vncReady])
+  }, [sandbox, vncReady, level])
+
+  // Отслеживание готовности SSH для Level B
+  useEffect(() => {
+    if (level === 'B' && sandbox?.ssh_port && sandbox?.status === 'running') {
+      let retryCount = 0
+      const maxRetries = 60
+      let interval = null
+      let connectionCheckInterval = null
+      
+      const checkSshReady = () => {
+        retryCount++
+        
+        if (sandbox.ssh_port && sandbox.status === 'running') {
+          if (retryCount < 10) {
+            // Первые попытки - показываем SSH_STARTING
+            setLoadingStage(LOADING_STAGES.SSH_STARTING)
+            setSshError(`Инициализация SSH сервера... (попытка ${retryCount}/${maxRetries})`)
+          } else if (retryCount >= 10 && retryCount < 15) {
+            // Средние попытки - показываем SSH_READY (подключение)
+            setLoadingStage(LOADING_STAGES.SSH_READY)
+            setSshError(`SSH сервер запускается... (попытка ${retryCount}/${maxRetries})`)
+          } else if (retryCount >= 15) {
+            // SSH готов, переходим к READY
+            setSshReady(true)
+            setSshError(null)
+            setLoadingStage(LOADING_STAGES.READY)
+            // Останавливаем проверку
+            if (interval) clearInterval(interval)
+            if (connectionCheckInterval) clearInterval(connectionCheckInterval)
+          }
+        } else {
+          if (retryCount < maxRetries) {
+            setSshError(`Ожидание информации о SSH порте... (попытка ${retryCount}/${maxRetries})`)
+          } else {
+            setSshError('SSH сервер не отвечает. Проверьте логи контейнера.')
+          }
+        }
+      }
+      
+      const checkConnectionStatus = () => {
+        if (retryCount > 30 && !sshReady) {
+          setConnectionTimeout(true)
+          setSshError('Не удалось установить соединение с SSH сервером. Возможно, SSH сервер не запущен.')
+        }
+      }
+      
+      checkSshReady()
+      interval = setInterval(checkSshReady, 2000)
+      connectionCheckInterval = setInterval(checkConnectionStatus, 2000)
+      
+      return () => {
+        if (interval) clearInterval(interval)
+        if (connectionCheckInterval) clearInterval(connectionCheckInterval)
+        retryCount = 0
+      }
+    } else if (level === 'B') {
+      setSshReady(false)
+      setSshError(null)
+      setConnectionTimeout(false)
+    }
+  }, [sandbox, sshReady, level])
   
   useEffect(() => {
     if (sandbox && (sandbox.status === 'stopped' || sandbox.status === 'removed')) {
       setVncReady(false)
+      setSshReady(false)
       setVncError(null)
+      setSshError(null)
       setLoadingStage(null)
       setConnectionTimeout(false)
       setShowIframe(false)
@@ -167,13 +264,36 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
   const LoadingIndicator = ({ stage }) => {
     if (!stage) return null
     
-    const stages = Object.values(LOADING_STAGES)
-    const currentIndex = stages.findIndex(s => s.id === stage.id)
+    // Фильтруем стадии в зависимости от уровня
+    const allStages = Object.values(LOADING_STAGES)
+    let relevantStages = allStages
+    
+    if (level === 'A') {
+      // Для Level A показываем стадии до VNC_READY
+      relevantStages = allStages.filter(s => 
+        !s.id.includes('SSH') && (s.id === 'READY' || !s.id.includes('SSH'))
+      )
+    } else if (level === 'B') {
+      // Для Level B показываем стадии до SSH_READY, заменяя VNC на SSH
+      relevantStages = [
+        LOADING_STAGES.CREATING,
+        LOADING_STAGES.STARTING,
+        LOADING_STAGES.INITIALIZING,
+        LOADING_STAGES.SSH_STARTING,
+        LOADING_STAGES.SSH_READY,
+        LOADING_STAGES.READY
+      ]
+    }
+    
+    const currentIndex = relevantStages.findIndex(s => s.id === stage.id)
+    const stagesToShow = currentIndex >= 0 
+      ? relevantStages.slice(0, currentIndex + 1)
+      : [stage]
     
     return (
       <div className="sandbox-loading">
         <div className="loading-stages">
-          {stages.slice(0, currentIndex + 1).map((s, idx) => (
+          {stagesToShow.map((s, idx) => (
             <div 
               key={s.id} 
               className={`loading-stage ${s.id === stage.id ? 'active' : 'completed'}`}
@@ -197,7 +317,8 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
   }
 
   const isSandboxStopped = sandbox && (sandbox.status === 'stopped' || sandbox.status === 'removed')
-  const showLoading = isLoading || isCreating || (sandbox && !isSandboxStopped && loadingStage && loadingStage.id !== 'ready') || (!sandbox && isCreating)
+  const showLoading = isLoading || isCreating || (sandbox && !isSandboxStopped && loadingStage && loadingStage.id !== 'ready' && 
+    ((level === 'A' && !vncReady) || (level === 'B' && !sshReady))) || (!sandbox && isCreating)
   
   if (showLoading) {
     return (
@@ -220,7 +341,32 @@ function SandboxViewer({ missionId, level, isCreating = false }) {
     )
   }
 
-  if ((level === 'A' || level === 'B' || sandbox.novnc_port) && sandbox.vnc_url && sandbox.status === 'running' && !isSandboxStopped) {
+  // Для уровня B показываем терминал вместо GUI
+  if (level === 'B' && sandbox.ssh_port && sandbox.status === 'running' && !isSandboxStopped && sshReady) {
+    return (
+      <div className="sandbox-viewer">
+        <TerminalViewer missionId={missionId} sandbox={sandbox} />
+      </div>
+    )
+  }
+  
+  // Для Level B показываем загрузку, если SSH еще не готов
+  if (level === 'B' && sandbox.ssh_port && sandbox.status === 'running' && !isSandboxStopped && !sshReady) {
+    return (
+      <div className="sandbox-viewer">
+        <div className="sandbox-placeholder">
+          <LoadingIndicator stage={loadingStage || LOADING_STAGES.SSH_STARTING} />
+          {sshError && (
+            <div className="ssh-loading" style={{ marginTop: '1rem', color: '#ff9800' }}>
+              <p>⚠️ {sshError}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  if ((level === 'A' || sandbox.novnc_port) && sandbox.vnc_url && sandbox.status === 'running' && !isSandboxStopped) {
     const showConnectionError = vncError && vncError.includes('Не удалось установить соединение')
     
     return (

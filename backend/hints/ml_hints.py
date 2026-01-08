@@ -7,6 +7,7 @@ from pathlib import Path
 
 from backend.config import settings
 from backend.hints.action_tracker import ActionTracker
+from backend.hints.llm_hints import get_llm_hint_provider
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class MLHintSystem:
     def __init__(self):
         self.model_data_file = Path(settings.SANDBOX_DATA_DIR) / "ml_model.json"
         self.model_data: Dict[str, Any] = {}
+        self.llm_provider = get_llm_hint_provider()
         self._load_model()
     
     def _load_model(self):
@@ -116,15 +118,48 @@ class MLHintSystem:
                     "total_attempts": stats["total"]
                 }
     
-    def predict_hint(
+    async def predict_hint(
         self,
         mission_id: str,
         command: Optional[str] = None,
         error_message: Optional[str] = None,
-        failed_checks: Optional[List[Dict[str, Any]]] = None
+        failed_checks: Optional[List[Dict[str, Any]]] = None,
+        mission_config: Optional[Dict[str, Any]] = None,
+        check_result: Optional[Dict[str, Any]] = None,
+        os_type: Optional[str] = None
     ) -> Optional[str]:
         """Предсказать подсказку на основе обученной модели"""
         hints = []
+        
+        # Если есть описание миссии, генерируем подсказку на основе целей
+        if mission_config and not error_message and not failed_checks:
+            mission_description = mission_config.get("description", "")
+            objectives = mission_config.get("objectives", [])
+            level = mission_config.get("level", "A")
+            
+            if mission_description or objectives:
+                # Генерируем подсказку на основе целей миссии
+                try:
+                    llm_hint = await self.llm_provider.get_hint(
+                        mission_id=mission_id,
+                        mission_config=mission_config,
+                        failed_checks=[],
+                        check_result={
+                            "checks": [],
+                            "result": "in_progress",
+                            "level": level
+                        },
+                        context={
+                            "level": level,
+                            "mission_description": mission_description,
+                            "objectives": objectives,
+                            "os_type": os_type
+                        }
+                    )
+                    if llm_hint:
+                        return llm_hint
+                except Exception as e:
+                    logger.warning(f"Ошибка генерации подсказки на основе целей: {e}")
         
         # Анализ команды
         if command:
@@ -170,6 +205,34 @@ class MLHintSystem:
                             "confidence": 0.7,
                             "type": "learned_solution"
                         })
+        
+        # Пробуем получить подсказку от LLM, если доступен
+        try:
+            # Определяем уровень из конфигурации миссии
+            mission_level = (mission_config or {}).get("level", "A")
+            
+            llm_hint = await self.llm_provider.get_hint(
+                mission_id=mission_id,
+                mission_config=mission_config or {},
+                failed_checks=failed_checks or [],
+                check_result=check_result or {},
+                context={
+                    "command": command,
+                    "error_message": error_message,
+                    "level": mission_level,
+                    "os_type": os_type
+                }
+            )
+            
+            if llm_hint:
+                # LLM подсказка имеет приоритет, если она есть
+                hints.append({
+                    "hint": llm_hint,
+                    "confidence": 0.9,
+                    "type": "llm_generated"
+                })
+        except Exception as e:
+            logger.warning(f"Ошибка получения LLM подсказки: {e}")
         
         if not hints:
             return None

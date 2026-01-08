@@ -1,0 +1,83 @@
+.terminal-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: #1e1e1e;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: #252526;
+  border-bottom: 1px solid #3e3e42;
+  color: #cccccc;
+  font-size: 0.875rem;
+}
+
+.terminal-header .status-indicator {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background: #3e3e42;
+}
+
+.terminal-header .status-indicator.active {
+  color: #4ec9b0;
+  background: #1e3a3a;
+}
+
+.terminal-header .status-indicator.pending {
+  color: #ce9178;
+  background: #3a2a1e;
+}
+
+.terminal-container {
+  flex: 1;
+  padding: 0.5rem;
+  overflow: hidden;
+}
+
+.terminal-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #cccccc;
+}
+
+.terminal-placeholder p {
+  margin: 0.5rem 0;
+}
+
+.terminal-placeholder .hint {
+  color: #888;
+  font-size: 0.875rem;
+}
+
+.terminal-error {
+  padding: 1rem;
+  background: #3a1f1f;
+  border-bottom: 1px solid #cd3131;
+  color: #f48771;
+}
+
+/* Стили для xterm.js */
+.terminal-viewer .xterm {
+  height: 100%;
+  width: 100%;
+}
+
+.terminal-viewer .xterm-viewport {
+  background: #1e1e1e !important;
+}
+
+.terminal-viewer .xterm-screen {
+  background: #1e1e1e !important;
+}
+

@@ -3,11 +3,13 @@ import axios from 'axios'
 import './HintsPanel.css'
 
 const HintsPanel = ({ missionId, checkResult, sandbox, mission, onClose }) => {
-  const [hints, setHints] = useState([])
-  const [staticHints, setStaticHints] = useState([])
+  const [hints, setHints] = useState([]) // ML подсказки
+  const [staticHints, setStaticHints] = useState([]) // Общие подсказки
   const [loading, setLoading] = useState(false)
+  const [mlLoading, setMlLoading] = useState(false)
   const [hintsEnabled, setHintsEnabled] = useState(true)
   const [mlEnabled, setMlEnabled] = useState(true)
+  const [activeTab, setActiveTab] = useState('general') // 'general' или 'ml'
   const [revealedStaticHints, setRevealedStaticHints] = useState([])
   const [revealedDynamicHints, setRevealedDynamicHints] = useState([])
 
@@ -31,15 +33,39 @@ const HintsPanel = ({ missionId, checkResult, sandbox, mission, onClose }) => {
     }
   }, [checkResult])
 
-  // Загружаем динамические подсказки после проверки
+  // Загружаем ML подсказки во время прохождения миссии (realtime)
+  useEffect(() => {
+    if (sandbox?.status === 'running' && mlEnabled && !checkResult) {
+      // Загружаем ML подсказки сразу при запуске
+      loadRealtimeMLHints()
+      
+      // Затем обновляем каждые 20 секунд
+      const interval = setInterval(() => {
+        if (sandbox?.status === 'running' && !checkResult && mlEnabled) {
+          loadRealtimeMLHints()
+        }
+      }, 20000) // Обновляем каждые 20 секунд для ML подсказок
+      
+      return () => clearInterval(interval)
+    }
+  }, [sandbox?.status, mlEnabled, missionId, checkResult])
+
+  // Загружаем динамические подсказки после проверки (только если есть ошибки)
   useEffect(() => {
     if (checkResult && hintsEnabled) {
-      loadHints()
-    } else if (!checkResult && hintsEnabled && sandbox?.status === 'running') {
-      // Можно загрузить общие подсказки для миссии
-      loadGeneralHints()
+      // Проверяем, пройдена ли миссия
+      const isPassed = checkResult.result === 'passed' || 
+                      (checkResult.result === 'partial' && checkResult.score >= 70)
+      
+      // Загружаем подсказки только если миссия не пройдена
+      if (!isPassed) {
+        loadHints()
+      } else {
+        // Миссия пройдена - очищаем подсказки
+        setHints([])
+      }
     }
-  }, [checkResult, missionId, hintsEnabled, mlEnabled, sandbox])
+  }, [checkResult, missionId, hintsEnabled, mlEnabled])
 
   const loadHintSettings = async () => {
     try {
@@ -54,45 +80,67 @@ const HintsPanel = ({ missionId, checkResult, sandbox, mission, onClose }) => {
   const loadHints = async () => {
     if (!missionId || !checkResult) return
 
-    setLoading(true)
-    try {
-      const response = await axios.post(
-        `/api/v1/hints/check-result/${missionId}`,
-        checkResult,
-        {
-          params: {
-            use_ml: mlEnabled
+    // Загружаем только ML подсказки при проверке
+    if (mlEnabled) {
+      setMlLoading(true)
+      try {
+        const response = await axios.post(
+          `/api/v1/hints/check-result/${missionId}`,
+          checkResult,
+          {
+            params: {
+              use_ml: true
+            }
           }
-        }
-      )
-      setHints(response.data.hints || [])
-    } catch (error) {
-      console.error('Ошибка загрузки подсказок:', error)
-      setHints([])
-    } finally {
-      setLoading(false)
+        )
+        const newHints = response.data.hints || []
+        
+        // Добавляем новые подсказки без лимита
+        setHints(prevHints => {
+          const existingTexts = new Set(prevHints)
+          const uniqueNewHints = newHints.filter(hint => !existingTexts.has(hint))
+          return [...prevHints, ...uniqueNewHints]
+        })
+      } catch (error) {
+        console.error('Ошибка загрузки ML подсказок:', error)
+      } finally {
+        setMlLoading(false)
+      }
     }
   }
 
-  const loadGeneralHints = async () => {
-    if (!missionId || !sandbox || sandbox.status !== 'running') return
+  const loadRealtimeMLHints = async () => {
+    if (!missionId || !sandbox || sandbox.status !== 'running' || !mlEnabled) return
 
-    setLoading(true)
+    setMlLoading(true)
     try {
       const response = await axios.get(
         `/api/v1/hints/check/${missionId}`,
         {
           params: {
-            use_ml: mlEnabled
+            use_ml: true  // Всегда используем ML для realtime подсказок
           }
         }
       )
-      setHints(response.data.hints || [])
+      const newHints = response.data.hints || []
+      
+      console.log('Получены ML подсказки:', newHints.length, newHints)
+      
+      // Добавляем только новые подсказки, которых еще нет (без лимита)
+      setHints(prevHints => {
+        const existingTexts = new Set(prevHints)
+        const uniqueNewHints = newHints.filter(hint => hint && !existingTexts.has(hint))
+        const updated = [...prevHints, ...uniqueNewHints]
+        console.log('Обновленные подсказки:', updated.length)
+        return updated
+      })
     } catch (error) {
-      console.error('Ошибка загрузки общих подсказок:', error)
-      setHints([])
+      console.error('Ошибка загрузки ML подсказок в реальном времени:', error)
+      if (error.response) {
+        console.error('Ответ сервера:', error.response.data)
+      }
     } finally {
-      setLoading(false)
+      setMlLoading(false)
     }
   }
 
@@ -136,19 +184,29 @@ const HintsPanel = ({ missionId, checkResult, sandbox, mission, onClose }) => {
   }
 
   const revealNextDynamicHint = () => {
+    // Показываем подсказки постепенно, по одной
     if (revealedDynamicHints.length < hints.length) {
       setRevealedDynamicHints([...revealedDynamicHints, revealedDynamicHints.length])
     }
   }
+  
+  // Определяем видимые ML подсказки
+  const visibleMLHints = revealedDynamicHints.map(index => hints[index]).filter(Boolean)
+  const allMLRevealed = revealedDynamicHints.length >= hints.length
+  
+  // НЕ показываем ML подсказки автоматически - только по кнопке
+  // Подсказки будут показываться постепенно при нажатии кнопки
 
   // Определяем видимые подсказки (используем индексы из revealed массивов)
   const visibleStaticHints = revealedStaticHints.map(index => staticHints[index]).filter(Boolean)
-  const visibleDynamicHints = revealedDynamicHints.map(index => hints[index]).filter(Boolean)
   const allStaticRevealed = revealedStaticHints.length >= staticHints.length
-  const allDynamicRevealed = revealedDynamicHints.length >= hints.length
   const hasStaticHints = staticHints.length > 0
-  const hasDynamicHints = hints.length > 0
-  const hasAnyHints = hasStaticHints || hasDynamicHints || (checkResult && checkResult.result === 'passed')
+  
+  // Проверяем, пройдена ли миссия
+  const isPassed = checkResult && (
+    checkResult.result === 'passed' || 
+    (checkResult.result === 'partial' && checkResult.score >= 70)
+  )
 
   return (
     <div className="hints-panel">
@@ -180,14 +238,36 @@ const HintsPanel = ({ missionId, checkResult, sandbox, mission, onClose }) => {
           </button>
         )}
       </div>
+      
+      {/* Вкладки */}
+      {hintsEnabled && (
+        <div className="hints-tabs">
+          <button
+            className={`hints-tab ${activeTab === 'general' ? 'active' : ''}`}
+            onClick={() => setActiveTab('general')}
+          >
+            📚 Общие
+          </button>
+          <button
+            className={`hints-tab ${activeTab === 'ml' ? 'active' : ''}`}
+            onClick={() => setActiveTab('ml')}
+            disabled={!mlEnabled}
+          >
+            🤖 ML {sandbox?.status === 'running' && !checkResult && mlEnabled && (
+              <span className="realtime-badge-small">🔄</span>
+            )}
+          </button>
+        </div>
+      )}
 
       {hintsEnabled && (
         <div className="hints-content">
-          {loading ? (
-            <div className="hints-loading">Загрузка подсказок...</div>
-          ) : hasAnyHints ? (
+          {/* Вкладка "Общие" */}
+          {activeTab === 'general' && (
             <>
-              {hasStaticHints && (
+              {loading ? (
+                <div className="hints-loading">Загрузка подсказок...</div>
+              ) : hasStaticHints ? (
                 <div className="hints-section">
                   <div className="hints-section-header">
                     <h4 className="hints-section-title">📚 Общие подсказки:</h4>
@@ -222,63 +302,102 @@ const HintsPanel = ({ missionId, checkResult, sandbox, mission, onClose }) => {
                     </div>
                   )}
                 </div>
-              )}
-              {hasDynamicHints && (
-                <div className="hints-section">
-                  <div className="hints-section-header">
-                    <h4 className="hints-section-title">
-                      {checkResult ? '🤖 Умные подсказки на основе проверки:' : '💡 Контекстные подсказки:'}
-                    </h4>
-                    {!allDynamicRevealed && (
-                      <button 
-                        className="btn-hint"
-                        onClick={revealNextDynamicHint}
-                        disabled={allDynamicRevealed}
-                      >
-                        Дать подсказку
-                      </button>
-                    )}
-                  </div>
-                  {visibleDynamicHints.length === 0 && !allDynamicRevealed && (
-                    <div className="hints-placeholder">
-                      <p>Нажмите кнопку "Дать подсказку" чтобы получить помощь</p>
-                    </div>
-                  )}
-                  {visibleDynamicHints.length > 0 && (
-                    <ul className="hints-list">
-                      {visibleDynamicHints.map((hint, index) => (
-                        <li key={`dynamic-${revealedDynamicHints[index]}`} className="hint-item hint-dynamic">
-                          <span className="hint-number">{index + 1}</span>
-                          <span className="hint-text">{hint}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {allDynamicRevealed && (
-                    <div className="hints-complete">
-                      <p>✓ Все умные подсказки открыты</p>
-                    </div>
-                  )}
+              ) : (
+                <div className="hints-empty">
+                  <p>Общих подсказок пока нет. Они появятся в конфигурации миссии.</p>
                 </div>
               )}
-              {checkResult && checkResult.result === 'passed' && (
+            </>
+          )}
+          
+          {/* Вкладка "ML" */}
+          {activeTab === 'ml' && (
+            <>
+              {!mlEnabled ? (
+                <div className="hints-empty">
+                  <p>ML подсказки отключены. Включите их в настройках выше.</p>
+                </div>
+              ) : (
+                <>
+                  {mlLoading && (
+                    <div className="hints-loading">Загрузка ML подсказок...</div>
+                  )}
+                  {!mlLoading && hints.length > 0 ? (
+                    <div className="hints-section">
+                      <div className="hints-section-header">
+                        <h4 className="hints-section-title">
+                          {checkResult 
+                            ? '🤖 Умные подсказки на основе проверки:' 
+                            : sandbox?.status === 'running'
+                              ? '💡 Умные подсказки (в реальном времени):'
+                              : '💡 Контекстные подсказки:'}
+                        </h4>
+                        {!allMLRevealed && (
+                          <button 
+                            className="btn-hint"
+                            onClick={revealNextDynamicHint}
+                            disabled={allMLRevealed}
+                          >
+                            Дать подсказку
+                          </button>
+                        )}
+                        {sandbox?.status === 'running' && !checkResult && (
+                          <span className="realtime-badge">🔄 Live</span>
+                        )}
+                      </div>
+                      {visibleMLHints.length === 0 && !allMLRevealed && (
+                        <div className="hints-placeholder">
+                          <p>Нажмите кнопку "Дать подсказку" чтобы получить помощь</p>
+                          {sandbox?.status === 'running' && (
+                            <p className="realtime-info">Система анализирует ваши действия и предоставит подсказки при необходимости</p>
+                          )}
+                        </div>
+                      )}
+                      {visibleMLHints.length > 0 && (
+                        <ul className="hints-list">
+                          {visibleMLHints.map((hint, index) => {
+                            if (!hint) return null
+                            return (
+                              <li key={`ml-${revealedDynamicHints[index]}-${hint.substring(0, 20)}`} className="hint-item hint-dynamic">
+                                <span className="hint-icon">🤖</span>
+                                <span className="hint-number">{index + 1}</span>
+                                <span className="hint-text">{hint}</span>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                      {allMLRevealed && (
+                        <div className="hints-complete">
+                          <p>✓ Все умные подсказки открыты</p>
+                        </div>
+                      )}
+                      {sandbox?.status === 'running' && !checkResult && (
+                        <div className="realtime-info">
+                          <p>🔄 Подсказки обновляются автоматически каждые 20 секунд</p>
+                          <p>Доступно подсказок: {hints.length} (открыто: {visibleMLHints.length})</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : !mlLoading ? (
+                    <div className="hints-placeholder">
+                      <p>ML подсказки появятся автоматически во время работы</p>
+                      {sandbox?.status === 'running' && (
+                        <p className="realtime-info">Система анализирует ваши действия и предоставит подсказки при необходимости</p>
+                      )}
+                      {(!sandbox || sandbox.status !== 'running') && (
+                        <p className="realtime-info">Запустите песочницу для получения ML подсказок</p>
+                      )}
+                    </div>
+                  ) : null}
+                </>
+              )}
+              {isPassed && (
                 <div className="hints-success">
                   ✅ Все проверки пройдены! Отличная работа!
                 </div>
               )}
             </>
-          ) : checkResult ? (
-            <div className="hints-empty">
-              {checkResult.result === 'passed' 
-                ? '✅ Все проверки пройдены! Отличная работа!'
-                : 'Пока нет подсказок. Попробуйте выполнить проверку миссии.'}
-            </div>
-          ) : (
-            <div className="hints-empty">
-              {sandbox?.status === 'running' 
-                ? 'Подсказки появятся после проверки миссии или при возникновении ошибок'
-                : 'Запустите песочницу, чтобы получить подсказки'}
-            </div>
           )}
         </div>
       )}

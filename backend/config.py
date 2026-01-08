@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     VNC_PASSWORD: str = "sandbox123"
     VNC_RESOLUTION: str = "1280x720"
     
+    # SSH настройки для уровня B
+    SSH_PORT_START: int = 2200
+    SSH_PASSWORD: str = "sandbox123"  # Пароль для SSH пользователя
+    
     # API настройки
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
@@ -64,11 +68,11 @@ class Settings(BaseSettings):
     DEFAULT_DISTRO: str = "debian"  # Дистрибутив по умолчанию
     # Маппинг дистрибутивов на базовые образы
     # Для B/C миссий используются стандартные образы из Docker Hub
-    # Для astra используется debian как fallback, так как astra-linux:se требует debootstrap
+    # Для astra можно использовать базовый образ Astra Linux, если он доступен
     DISTRO_BASE_IMAGES: dict[str, str] = {
         "debian": "debian:12",
         "ubuntu": "ubuntu:22.04",
-        "astra": "debian:12"  # Используем debian как fallback для astra в B/C миссиях (astra-linux:se требует debootstrap)
+        "astra": "localhost/astra-linux:latest"  # Базовый образ Astra Linux для Level B (без GUI)
     }
     # Маппинг дистрибутивов на GUI образы (с VNC)
     DISTRO_GUI_IMAGES: dict[str, str] = {
@@ -84,6 +88,14 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://trainer_user:trainer_password@localhost:5432/trainer_db"
     # Формат: postgresql://user:password@host:port/database
     # Можно переопределить через переменную окружения DATABASE_URL или .env файл
+    
+    # LLM настройки для умных подсказок
+    LLM_HINTS_ENABLED: bool = False  # Включить LLM подсказки
+    LLM_PROVIDER: str = "lm_studio"  # lm_studio, ollama, openai, heuristic
+    LLM_API_URL: str = "http://localhost:1234/v1"  # URL для LM Studio (по умолчанию)
+    LLM_MODEL: str = "local-model"  # Название модели
+    OLLAMA_URL: str = "http://localhost:11434"  # URL для Ollama
+    OPENAI_API_KEY: str = ""  # API ключ для OpenAI (если используется)
     
     class Config:
         # .env файл должен находиться в директории backend/

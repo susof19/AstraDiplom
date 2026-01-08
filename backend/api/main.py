@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 import logging
 
 from backend.config import settings
-from backend.api.routes import missions, sandbox, grader, progress, auth, admin, hints
+from backend.api.routes import missions, sandbox, grader, progress, auth, admin, hints, llm_test, ssh_terminal
 from backend.sandbox.manager import sandbox_manager
 from backend.models.user_db import User  # noqa: F401
 
@@ -24,6 +24,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Для WebSocket
 )
 
 logger.info("📋 Регистрация API роутов...")
@@ -41,6 +42,10 @@ app.include_router(admin.router, prefix=f"{settings.API_PREFIX}/admin", tags=["a
 logger.info(f"   ✅ Admin роуты зарегистрированы: {settings.API_PREFIX}/admin")
 app.include_router(hints.router, prefix=settings.API_PREFIX, tags=["hints"])
 logger.info(f"   ✅ Hints роуты зарегистрированы: {settings.API_PREFIX}/hints")
+app.include_router(llm_test.router, prefix=settings.API_PREFIX, tags=["llm"])
+logger.info(f"   ✅ LLM тест роуты зарегистрированы: {settings.API_PREFIX}/llm")
+app.include_router(ssh_terminal.router, prefix=settings.API_PREFIX, tags=["ssh"])
+logger.info(f"   ✅ SSH терминал роуты зарегистрированы: {settings.API_PREFIX}/sandbox/{{mission_id}}/ssh")
 logger.info("✅ Все роуты зарегистрированы")
 
 

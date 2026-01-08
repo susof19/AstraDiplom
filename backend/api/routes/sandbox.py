@@ -22,24 +22,35 @@ async def create_sandbox(request: CreateSandboxRequest) -> Dict[str, Any]:
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"Создание песочницы: mission_id={request.mission_id}, level={request.level}, "
-                f"image={request.image}, use_vnc={request.use_vnc}, distro={request.distro}")
+    # Логируем сразу в начале функции, чтобы видеть, что запрос дошел
+    logger.info("=" * 80)
+    logger.info(f"[ROUTER] === POST /sandbox/create ЗАПРОС ПОЛУЧЕН ===")
+    logger.info(f"[ROUTER] Создание песочницы: mission_id={request.mission_id}, level={request.level}, "
+                f"image={getattr(request, 'image', None)}, use_vnc={request.use_vnc}, distro={request.distro}")
+    logger.info("=" * 80)
     
-    sandbox = await sandbox_manager.create_sandbox(
-        request.mission_id,
-        request.level,
-        request.image,
-        request.use_vnc,
-        request.distro
-    )
-    
-    if not sandbox:
-        raise HTTPException(status_code=500, detail="Не удалось создать песочницу")
+    try:
+        sandbox = await sandbox_manager.create_sandbox(
+            request.mission_id,
+            request.level,
+            request.image,
+            request.use_vnc,
+            request.distro
+        )
+        
+        if not sandbox:
+            logger.error(f"[ROUTER] ❌ Не удалось создать песочницу для {request.mission_id}")
+            raise HTTPException(status_code=500, detail="Не удалось создать песочницу")
+        
+        logger.info(f"[ROUTER] ✅ Песочница создана: {request.mission_id}, container_id={sandbox.container_id}")
+    except Exception as e:
+        logger.error(f"[ROUTER] ❌ Исключение при создании песочницы: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка создания песочницы: {str(e)}")
     
     info = await sandbox.get_info()
     vnc_url = await sandbox.get_vnc_url() if sandbox.use_vnc else None
     
-    return {
+    result = {
         "mission_id": request.mission_id,
         "container_name": sandbox.container_name,
         "container_id": sandbox.container_id,
@@ -47,8 +58,11 @@ async def create_sandbox(request: CreateSandboxRequest) -> Dict[str, Any]:
         "vnc_port": sandbox.vnc_port,
         "novnc_port": sandbox.novnc_port,
         "vnc_url": vnc_url,
+        "ssh_port": getattr(sandbox, 'ssh_port', None),
+        "ssh_user": getattr(sandbox, 'container_user', None) or "root",
         "info": info
     }
+    return result
 
 
 @router.get("/sandbox/active")
@@ -96,6 +110,8 @@ async def get_sandbox(mission_id: str) -> Dict[str, Any]:
         "vnc_port": sandbox.vnc_port,
         "novnc_port": getattr(sandbox, 'novnc_port', None),
         "vnc_url": vnc_url,
+        "ssh_port": getattr(sandbox, 'ssh_port', None),
+        "ssh_user": getattr(sandbox, 'container_user', None) or "root",
         "info": info
     }
 
