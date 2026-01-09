@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 import logging
 
 from backend.config import settings
-from backend.api.routes import missions, sandbox, grader, progress, auth, admin, hints, llm_test, ssh_terminal
+from backend.api.routes import missions, sandbox, grader, progress, auth, admin, hints, llm_test, ssh_terminal, personal_missions
 from backend.sandbox.manager import sandbox_manager
 from backend.models.user_db import User  # noqa: F401
 
@@ -46,6 +46,8 @@ app.include_router(llm_test.router, prefix=settings.API_PREFIX, tags=["llm"])
 logger.info(f"   ✅ LLM тест роуты зарегистрированы: {settings.API_PREFIX}/llm")
 app.include_router(ssh_terminal.router, prefix=settings.API_PREFIX, tags=["ssh"])
 logger.info(f"   ✅ SSH терминал роуты зарегистрированы: {settings.API_PREFIX}/sandbox/{{mission_id}}/ssh")
+app.include_router(personal_missions.router, prefix=settings.API_PREFIX, tags=["personal-missions"])
+logger.info(f"   ✅ Personal missions роуты зарегистрированы: {settings.API_PREFIX}/personal-missions")
 logger.info("✅ Все роуты зарегистрированы")
 
 
