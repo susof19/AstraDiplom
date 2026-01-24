@@ -44,3 +44,6 @@ missions/progress/
 *.tar
 *.img
 
+.backend.pid
+.frontend.pid
+/missions/personal
