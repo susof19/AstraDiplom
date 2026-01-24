@@ -1,0 +1,67 @@
+# Multi-stage Dockerfile для Backend FastAPI приложения
+# Оптимизирован для размера и безопасности
+
+# Stage 1: Builder - установка зависимостей
+FROM python:3.12-slim as builder
+
+WORKDIR /build
+
+# Установка системных зависимостей для сборки
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копирование requirements и установка зависимостей в отдельный слой
+COPY backend/requirements.txt .
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -r requirements.txt
+
+# Stage 2: Runtime - минимальный финальный образ
+FROM python:3.12-slim
+
+# Метаданные образа
+LABEL maintainer="AstraDiplom Project"
+LABEL description="Linux Training Simulator Backend API"
+
+# Создание непривилегированного пользователя
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+WORKDIR /app
+
+# Установка только runtime зависимостей
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    podman \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копирование wheels из builder stage и установка
+COPY --from=builder /build/wheels /wheels
+RUN pip install --no-cache /wheels/* && rm -rf /wheels
+
+# Копирование кода приложения
+COPY backend/ /app/backend/
+COPY missions/ /app/missions/
+COPY images/ /app/images/
+
+# Создание директорий для данных
+RUN mkdir -p /app/sandbox_data /app/logs && \
+    chown -R appuser:appuser /app
+
+# Переключение на непривилегированного пользователя
+USER appuser
+
+# Переменные окружения
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    API_HOST=0.0.0.0 \
+    API_PORT=8000
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+# Expose порт API
+EXPOSE 8000
+
+# Запуск приложения
+CMD ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
