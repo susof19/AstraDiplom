@@ -38,7 +38,7 @@ images/cache/
 missions/progress/
 *.db
 *.sqlite
-/доки-хуеки/
+
 
 # Podman/Docker
 *.tar
