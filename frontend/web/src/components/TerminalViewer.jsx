@@ -82,19 +82,11 @@ function TerminalViewer({ missionId, sandbox }) {
       return
     }
 
-    // Подключаемся к WebSocket
-    // Для разработки используем ws://localhost:8000 напрямую
-    // Для продакшена нужно будет настроить прокси правильно
-    const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    let wsUrl
-    if (isDev) {
-      // В режиме разработки подключаемся напрямую к бэкенду
-      wsUrl = `ws://localhost:8000/api/v1/sandbox/${missionId}/ssh`
-    } else {
-      // В продакшене используем тот же хост
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      wsUrl = `${protocol}//${window.location.host}/api/v1/sandbox/${missionId}/ssh`
-    }
+    // Подключаемся к WebSocket через прокси
+    // Прокси автоматически перенаправит на правильный порт backend
+    // Это решает проблему с динамическими портами
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.host}/api/v1/sandbox/${missionId}/ssh`
     
     console.log(`Подключение к WebSocket: ${wsUrl}`)
     const ws = new WebSocket(wsUrl)
@@ -120,7 +112,7 @@ function TerminalViewer({ missionId, sandbox }) {
 
     ws.onerror = (error) => {
       console.error('WebSocket error:', error)
-      setError('Ошибка подключения к SSH терминалу. Проверьте, что бэкенд запущен на порту 8000')
+      setError('Ошибка подключения к SSH терминалу. Проверьте, что бэкенд запущен и доступен.')
       setConnected(false)
     }
 

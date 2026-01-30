@@ -56,10 +56,22 @@ function MissionGeneratorChat({ onMissionCreated, onClose, initialLevel = 'A' })
     },
     onSuccess: (data) => {
       console.log('generateMutation.onSuccess вызван, data:', data)
+      
+      if (data.is_existing) {
+        // Найдена существующая миссия
+        const similarity = data.similarity || 0
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `🔍 Найдена похожая миссия "${data.mission?.name || 'существующая миссия'}" (схожесть: ${similarity}%)! Вы можете использовать её вместо создания новой.`
+        }])
+      } else {
+        // Создана новая миссия
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: `✅ Отлично! Миссия "${data.mission?.name || 'успешно создана'}" успешно создана! Теперь ты можешь перейти к ней и начать выполнение.`
       }])
+      }
+      
       if (onMissionCreated && data.mission) {
         console.log('Вызываем onMissionCreated с миссией:', data.mission)
         onMissionCreated(data.mission)

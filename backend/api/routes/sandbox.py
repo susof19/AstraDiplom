@@ -40,12 +40,26 @@ async def create_sandbox(request: CreateSandboxRequest) -> Dict[str, Any]:
         
         if not sandbox:
             logger.error(f"[ROUTER] ❌ Не удалось создать песочницу для {request.mission_id}")
-            raise HTTPException(status_code=500, detail="Не удалось создать песочницу")
+            # Проверяем, есть ли Docker/Podman
+            import shutil
+            docker_available = shutil.which("docker") is not None
+            podman_available = shutil.which("podman") is not None
+            error_detail = "Не удалось создать песочницу"
+            if not docker_available and not podman_available:
+                error_detail = "Docker или Podman не установлены. Убедитесь, что Docker Desktop запущен (для WSL) или установите Docker/Podman."
+            raise HTTPException(status_code=500, detail=error_detail)
         
         logger.info(f"[ROUTER] ✅ Песочница создана: {request.mission_id}, container_id={sandbox.container_id}")
+    except HTTPException:
+        # Пробрасываем HTTPException как есть
+        raise
     except Exception as e:
-        logger.error(f"[ROUTER] ❌ Исключение при создании песочницы: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Ошибка создания песочницы: {str(e)}")
+        error_msg = str(e).strip() if str(e) else repr(e)
+        logger.error(f"[ROUTER] ❌ Исключение при создании песочницы: {error_msg}", exc_info=True)
+        # Если сообщение об ошибке пустое, используем тип исключения
+        if not error_msg or error_msg == "None" or error_msg == "":
+            error_msg = f"{type(e).__name__}: Произошла неизвестная ошибка при создании песочницы. Проверьте логи backend для деталей."
+        raise HTTPException(status_code=500, detail=f"Ошибка создания песочницы: {error_msg}")
     
     info = await sandbox.get_info()
     vnc_url = await sandbox.get_vnc_url() if sandbox.use_vnc else None

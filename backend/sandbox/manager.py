@@ -57,8 +57,10 @@ class SandboxManager:
             logger.info(f"Песочница создана для миссии {mission_id}")
             return sandbox
         else:
-            logger.error(f"Не удалось создать песочницу для миссии {mission_id}")
-            return None
+            error_msg = getattr(sandbox, '_last_error', None) or "Не удалось создать песочницу"
+            logger.error(f"Не удалось создать песочницу для миссии {mission_id}: {error_msg}")
+            # Сохраняем ошибку в sandbox для последующего использования
+            raise Exception(error_msg)
     
     async def get_sandbox(self, mission_id: str) -> Optional[ContainerSandbox]:
         """Получить песочницу по ID миссии"""

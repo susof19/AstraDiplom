@@ -33,9 +33,9 @@ async def check_mission(
     if not level:
         level = sandbox.level
     
-    logger.info(f"Проверка миссии {mission_id} уровня {level}")
+    logger.info(f"Проверка миссии {mission_id} уровня {level} для пользователя {username}")
     
-    result = await Grader.grade_mission(mission_id, level, sandbox)
+    result = await Grader.grade_mission(mission_id, level, sandbox, username)
     
     # Отслеживаем результат проверки для системы подсказок
     try:
@@ -76,7 +76,20 @@ async def check_mission(
         try:
             import yaml
             from backend.config import settings
-            mission_dir = settings.MISSIONS_DIR / f"level_{level.lower()}" / mission_id
+            
+            # Определяем путь к миссии (стандартная или персональная)
+            if mission_id.startswith("personal_") and username:
+                # Персональная миссия
+                parts = mission_id.split("_", 2)
+                if len(parts) >= 2:
+                    extracted_username = parts[1]
+                    mission_dir = settings.MISSIONS_DIR / "personal" / extracted_username / mission_id
+                else:
+                    mission_dir = settings.MISSIONS_DIR / "personal" / username / mission_id
+            else:
+                # Стандартная миссия
+                mission_dir = settings.MISSIONS_DIR / f"level_{level.lower()}" / mission_id
+            
             config_file = mission_dir / "mission.yaml"
             if config_file.exists():
                 with open(config_file, 'r', encoding='utf-8') as f:
@@ -85,6 +98,7 @@ async def check_mission(
                     # XP = score * difficulty (максимум 100 * 5 = 500 XP за миссию)
                     base_xp = int(score * difficulty)
             else:
+                logger.warning(f"Конфиг миссии не найден для расчёта XP: {config_file}")
                 base_xp = score
         except Exception as e:
             logger.warning(f"Не удалось загрузить конфиг миссии для расчёта XP: {e}")

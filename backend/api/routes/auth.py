@@ -1,9 +1,10 @@
 """API endpoints для аутентификации"""
 from fastapi import APIRouter, HTTPException, status, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import timedelta
 from sqlalchemy.orm import Session
+import re
 
 from backend.models.user import User
 from backend.auth.jwt_handler import create_access_token
@@ -16,8 +17,135 @@ router = APIRouter()
 class RegisterRequest(BaseModel):
     """Запрос на регистрацию"""
     username: str = Field(..., min_length=3, max_length=50, description="Имя пользователя")
-    password: str = Field(..., min_length=6, max_length=100, description="Пароль")
-    secret_code: str = Field(..., min_length=4, max_length=50, description="Секретный код для восстановления пароля")
+    password: str = Field(..., min_length=6, max_length=72, description="Пароль")
+    secret_code: str = Field(..., min_length=4, max_length=72, description="Секретный код для восстановления пароля")
+    
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        """Валидация username: только латинские буквы, цифры, подчеркивание и дефис"""
+        if not v:
+            raise ValueError("Имя пользователя не может быть пустым")
+        
+        # Убираем пробелы в начале и конце
+        v = v.strip()
+        
+        if not v:
+            raise ValueError("Имя пользователя не может состоять только из пробелов")
+        
+        if len(v) < 3:
+            raise ValueError("Имя пользователя должно содержать минимум 3 символа")
+        
+        if len(v) > 50:
+            raise ValueError("Имя пользователя не может быть длиннее 50 символов")
+        
+        # Строгая проверка: только латинские буквы (a-z, A-Z), цифры (0-9), подчеркивание (_) и дефис (-)
+        # Проверяем, что НЕТ кириллицы и других нелатинских символов
+        if re.search(r'[^\x00-\x7F]', v):
+            # Если есть не-ASCII символы, проверяем конкретно на кириллицу
+            if re.search(r'[а-яА-ЯёЁ]', v):
+                raise ValueError(
+                    "Имя пользователя может содержать только латинские буквы (a-z, A-Z), цифры (0-9), подчеркивание (_) и дефис (-). Кириллица и другие нелатинские символы не допускаются."
+                )
+            else:
+                raise ValueError(
+                    "Имя пользователя может содержать только латинские буквы (a-z, A-Z), цифры (0-9), подчеркивание (_) и дефис (-). Другие символы не допускаются."
+                )
+        
+        # Проверка на только латинские буквы, цифры, подчеркивание и дефис
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError(
+                "Имя пользователя может содержать только латинские буквы (a-z, A-Z), цифры (0-9), подчеркивание (_) и дефис (-). Другие символы не допускаются."
+            )
+        
+        # Не может начинаться или заканчиваться дефисом или подчеркиванием
+        if v.startswith('-') or v.startswith('_') or v.endswith('-') or v.endswith('_'):
+            raise ValueError("Имя пользователя не может начинаться или заканчиваться дефисом или подчеркиванием")
+        
+        # Не может быть только цифрами
+        if v.isdigit():
+            raise ValueError("Имя пользователя не может состоять только из цифр")
+        
+        # Должна быть хотя бы одна латинская буква
+        if not re.search(r'[a-zA-Z]', v):
+            raise ValueError("Имя пользователя должно содержать хотя бы одну латинскую букву")
+        
+        return v
+    
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Валидация пароля"""
+        if not v:
+            raise ValueError("Пароль не может быть пустым")
+        
+        # Убираем пробелы в начале и конце
+        v = v.strip()
+        
+        if not v:
+            raise ValueError("Пароль не может состоять только из пробелов")
+        
+        if len(v) < 6:
+            raise ValueError("Пароль должен содержать минимум 6 символов")
+        
+        # Проверка на нелатинские символы (кириллица и другие)
+        if re.search(r'[^\x00-\x7F]', v):
+            if re.search(r'[а-яА-ЯёЁ]', v):
+                raise ValueError("Пароль может содержать только латинские буквы, цифры и специальные символы. Кириллица не допускается.")
+            else:
+                raise ValueError("Пароль может содержать только латинские буквы, цифры и специальные символы. Другие символы не допускаются.")
+        
+        # Проверка на допустимые символы: латинские буквы, цифры и специальные символы
+        if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
+            raise ValueError("Пароль может содержать только латинские буквы, цифры и специальные символы")
+        
+        # Проверка длины в байтах (bcrypt ограничивает до 72 байт)
+        v_bytes = v.encode('utf-8')
+        if len(v_bytes) > 72:
+            raise ValueError("Пароль слишком длинный (максимум 72 байта в UTF-8)")
+        
+        # Проверка на наличие хотя бы одной буквы и одной цифры
+        if not re.search(r'[a-zA-Z]', v):
+            raise ValueError("Пароль должен содержать хотя бы одну латинскую букву")
+        
+        if not re.search(r'[0-9]', v):
+            raise ValueError("Пароль должен содержать хотя бы одну цифру")
+        
+        return v
+    
+    @field_validator('secret_code')
+    @classmethod
+    def validate_secret_code(cls, v: str) -> str:
+        """Валидация секретного кода"""
+        if not v:
+            raise ValueError("Секретный код не может быть пустым")
+        
+        # Убираем пробелы в начале и конце
+        v = v.strip()
+        
+        if not v:
+            raise ValueError("Секретный код не может состоять только из пробелов")
+        
+        if len(v) < 4:
+            raise ValueError("Секретный код должен содержать минимум 4 символа")
+        
+        # Проверка на нелатинские символы (кириллица и другие)
+        if re.search(r'[^\x00-\x7F]', v):
+            if re.search(r'[а-яА-ЯёЁ]', v):
+                raise ValueError("Секретный код может содержать только латинские буквы, цифры и специальные символы. Кириллица не допускается.")
+            else:
+                raise ValueError("Секретный код может содержать только латинские буквы, цифры и специальные символы. Другие символы не допускаются.")
+        
+        # Проверка на допустимые символы: латинские буквы, цифры и специальные символы
+        if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
+            raise ValueError("Секретный код может содержать только латинские буквы, цифры и специальные символы")
+        
+        # Проверка длины в байтах (bcrypt ограничивает до 72 байт)
+        v_bytes = v.encode('utf-8')
+        if len(v_bytes) > 72:
+            raise ValueError("Секретный код слишком длинный (максимум 72 байта в UTF-8)")
+        
+        return v
 
 
 class LoginRequest(BaseModel):
@@ -30,13 +158,127 @@ class RecoverPasswordRequest(BaseModel):
     """Запрос на восстановление пароля"""
     username: str = Field(..., description="Имя пользователя")
     secret_code: str = Field(..., description="Секретный код")
-    new_password: str = Field(..., min_length=6, max_length=100, description="Новый пароль")
+    new_password: str = Field(..., min_length=6, max_length=72, description="Новый пароль")
+    
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        """Валидация username"""
+        if not v:
+            raise ValueError("Имя пользователя не может быть пустым")
+        v = v.strip()
+        if not v:
+            raise ValueError("Имя пользователя не может состоять только из пробелов")
+        if len(v) > 50:
+            raise ValueError("Имя пользователя не может быть длиннее 50 символов")
+        return v
+    
+    @field_validator('secret_code')
+    @classmethod
+    def validate_secret_code(cls, v: str) -> str:
+        """Валидация секретного кода"""
+        if not v:
+            raise ValueError("Секретный код не может быть пустым")
+        v = v.strip()
+        if not v:
+            raise ValueError("Секретный код не может состоять только из пробелов")
+        
+        # Проверка на нелатинские символы
+        if re.search(r'[^\x00-\x7F]', v):
+            if re.search(r'[а-яА-ЯёЁ]', v):
+                raise ValueError("Секретный код может содержать только латинские буквы, цифры и специальные символы. Кириллица не допускается.")
+            else:
+                raise ValueError("Секретный код может содержать только латинские буквы, цифры и специальные символы. Другие символы не допускаются.")
+        
+        if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
+            raise ValueError("Секретный код может содержать только латинские буквы, цифры и специальные символы")
+        
+        v_bytes = v.encode('utf-8')
+        if len(v_bytes) > 72:
+            raise ValueError("Секретный код слишком длинный (максимум 72 байта в UTF-8)")
+        return v
+    
+    @field_validator('new_password')
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        """Валидация нового пароля"""
+        if not v:
+            raise ValueError("Пароль не может быть пустым")
+        v = v.strip()
+        if not v:
+            raise ValueError("Пароль не может состоять только из пробелов")
+        if len(v) < 6:
+            raise ValueError("Пароль должен содержать минимум 6 символов")
+        
+        # Проверка на нелатинские символы
+        if re.search(r'[^\x00-\x7F]', v):
+            if re.search(r'[а-яА-ЯёЁ]', v):
+                raise ValueError("Пароль может содержать только латинские буквы, цифры и специальные символы. Кириллица не допускается.")
+            else:
+                raise ValueError("Пароль может содержать только латинские буквы, цифры и специальные символы. Другие символы не допускаются.")
+        
+        if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
+            raise ValueError("Пароль может содержать только латинские буквы, цифры и специальные символы")
+        
+        v_bytes = v.encode('utf-8')
+        if len(v_bytes) > 72:
+            raise ValueError("Пароль слишком длинный (максимум 72 байта в UTF-8)")
+        if not re.search(r'[a-zA-Z]', v):
+            raise ValueError("Пароль должен содержать хотя бы одну латинскую букву")
+        if not re.search(r'[0-9]', v):
+            raise ValueError("Пароль должен содержать хотя бы одну цифру")
+        return v
 
 
 class ChangePasswordRequest(BaseModel):
     """Запрос на изменение пароля"""
     old_password: str = Field(..., description="Старый пароль")
-    new_password: str = Field(..., min_length=6, max_length=100, description="Новый пароль")
+    new_password: str = Field(..., min_length=6, max_length=72, description="Новый пароль")
+    
+    @field_validator('old_password')
+    @classmethod
+    def validate_old_password(cls, v: str) -> str:
+        """Валидация старого пароля"""
+        if not v:
+            raise ValueError("Пароль не может быть пустым")
+        v = v.strip()
+        if not v:
+            raise ValueError("Пароль не может состоять только из пробелов")
+        v_bytes = v.encode('utf-8')
+        if len(v_bytes) > 72:
+            raise ValueError("Пароль слишком длинный (максимум 72 байта в UTF-8)")
+        return v
+    
+    @field_validator('new_password')
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        """Валидация нового пароля"""
+        if not v:
+            raise ValueError("Пароль не может быть пустым")
+        v = v.strip()
+        if not v:
+            raise ValueError("Пароль не может состоять только из пробелов")
+        if len(v) < 6:
+            raise ValueError("Пароль должен содержать минимум 6 символов")
+        
+        # Проверка на нелатинские символы
+        if re.search(r'[^\x00-\x7F]', v):
+            if re.search(r'[а-яА-ЯёЁ]', v):
+                raise ValueError("Пароль может содержать только латинские буквы, цифры и специальные символы. Кириллица не допускается.")
+            else:
+                raise ValueError("Пароль может содержать только латинские буквы, цифры и специальные символы. Другие символы не допускаются.")
+        
+        if not re.match(r'^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>\/?]+$', v):
+            raise ValueError("Пароль может содержать только латинские буквы, цифры и специальные символы")
+        
+        v_bytes = v.encode('utf-8')
+        if len(v_bytes) > 72:
+            raise ValueError("Пароль слишком длинный (максимум 72 байта в UTF-8)")
+        if not re.search(r'[a-zA-Z]', v):
+            raise ValueError("Пароль должен содержать хотя бы одну латинскую букву")
+        if not re.search(r'[0-9]', v):
+            raise ValueError("Пароль должен содержать хотя бы одну цифру")
+        return v
 
 
 class TokenResponse(BaseModel):

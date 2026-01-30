@@ -364,7 +364,7 @@ echo ""
 echo "📝 Создание скрипта запуска для WSL..."
 cd "$PROJECT_ROOT"
 
-cat > start-demo-wsl.sh << 'EOF'
+cat > start-demo_wsl.sh << 'EOF'
 #!/bin/bash
 # Скрипт запуска Linux Training Simulator для WSL
 

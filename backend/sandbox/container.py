@@ -68,6 +68,7 @@ class ContainerSandbox:
                 logger.info(f"[LEVEL A] Выбран GUI образ для distro={distro}: {image}")
         
         self.image = image
+        self._original_image = image  # Сохраняем оригинальный образ для fallback
         logger.info(f"[FINAL] Финальный образ для {level}: {self.image}, use_vnc={self.use_vnc}")
         if use_vnc and level == "A" and "gui-vnc" not in self.image and "astra-vnc" not in self.image:
             # Пытаемся найти GUI образ для текущего дистрибутива
@@ -83,6 +84,7 @@ class ContainerSandbox:
         self.ssh_port: Optional[int] = None
         self.status: str = "created"
         self.container_user: Optional[str] = None
+        self._last_error: Optional[str] = None
         
     async def _image_exists(self, image_name: str) -> bool:
         """Проверить существование образа"""
@@ -206,46 +208,124 @@ class ContainerSandbox:
                     "-v", f"{level_dir}:/mission:ro",
                 ])
             
+            # Проверяем существование образа перед созданием контейнера
+            logger.info(f"[CREATE] Проверка существования образа: {self.image}")
+            image_exists = await self._image_exists(self.image)
+            
+            # Если образ не найден, пытаемся использовать fallback образы
+            if not image_exists:
+                logger.warning(f"[CREATE] ⚠️ Образ {self.image} не найден, пытаемся найти альтернативный...")
+                
+                # Для уровня B пробуем стандартные образы Debian/Ubuntu
+                if self.level.upper() == "B":
+                    fallback_images = [
+                        "debian:12",
+                        "debian:11",
+                        "ubuntu:22.04",
+                        "ubuntu:20.04"
+                    ]
+                    for fallback_image in fallback_images:
+                        logger.info(f"[CREATE] Проверка fallback образа: {fallback_image}")
+                        if await self._image_exists(fallback_image):
+                            logger.info(f"[CREATE] ✅ Найден fallback образ: {fallback_image}")
+                            self.image = fallback_image
+                            image_exists = True
+                            break
+                        # Если образа нет локально, пробуем его скачать
+                        logger.info(f"[CREATE] Попытка скачать образ {fallback_image}...")
+                        try:
+                            pull_cmd = base_cmd + ["pull", fallback_image]
+                            pull_result = await asyncio.create_subprocess_exec(
+                                *pull_cmd,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE
+                            )
+                            stdout_pull, stderr_pull = await pull_result.communicate()
+                            if pull_result.returncode == 0:
+                                logger.info(f"[CREATE] ✅ Образ {fallback_image} успешно скачан")
+                                self.image = fallback_image
+                                image_exists = True
+                                break
+                            else:
+                                stderr_text = stderr_pull.decode() if stderr_pull else ""
+                                logger.warning(f"[CREATE] Не удалось скачать {fallback_image}: {stderr_text[:200]}")
+                        except Exception as e:
+                            logger.warning(f"[CREATE] Ошибка при скачивании {fallback_image}: {e}")
+                
+                # Если все fallback образы не подошли
+                if not image_exists:
+                    error_msg = f"Образ {self._original_image} не найден и не удалось найти/скачать альтернативный образ."
+                    logger.error(f"[CREATE] {error_msg}")
+                    logger.error(f"[CREATE] 💡 Для использования образа Astra Linux выполните:")
+                    logger.error(f"[CREATE]    docker build -t localhost/astra-linux:latest <путь_к_dockerfile>")
+                    logger.error(f"[CREATE] 💡 Или используйте стандартный образ Debian/Ubuntu")
+                    self._last_error = error_msg
+                    return False
+            else:
+                logger.info(f"[CREATE] ✅ Образ {self.image} найден")
+            
             # Для уровня B нужна долгоживущая команда, чтобы контейнер не остановился
             if self.level.upper() == "B":
                 # Запускаем контейнер с командой, которая будет работать постоянно
                 # Используем простой while true loop - работает везде
-                # Используем sleep 3600 внутри цикла, чтобы не нагружать CPU
+                # Используем sleep 200 внутри цикла, чтобы не нагружать CPU
+                cmd.append(self.image)
                 cmd.extend([
-                    self.image,
                     "sh", "-c", "while true; do sleep 200; done"  # Простой бесконечный цикл для уровня B
                 ])
-                logger.info(f"[CREATE] Используется команда для уровня B: sh -c 'while true; do sleep 3600; done'")
+                logger.info(f"[CREATE] Используется команда для уровня B: sh -c 'while true; do sleep 200; done'")
             else:
                 cmd.append(self.image)
             
             logger.info(f"[CREATE] Запуск команды создания контейнера для миссии {self.mission_id}")
             logger.info(f"[CREATE] Полная команда docker run: {' '.join(cmd)}")
-            result = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await result.communicate()
+            try:
+                result = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                logger.info(f"[CREATE] Команда запущена, ожидаем результат...")
+                stdout, stderr = await result.communicate()
+                logger.info(f"[CREATE] Команда завершена, returncode={result.returncode}")
+            except Exception as e:
+                logger.error(f"[CREATE] Исключение при выполнении docker run: {e}", exc_info=True)
+                self._last_error = f"Ошибка выполнения команды docker run: {str(e)}"
+                return False
             
             # Логируем результат сразу после выполнения
             if stderr:
                 stderr_text = stderr.decode()
                 if stderr_text.strip():
                     logger.warning(f"[CREATE] stderr от docker run: {stderr_text[:500]}")
+                else:
+                    logger.info(f"[CREATE] stderr пустой")
+            else:
+                logger.info(f"[CREATE] stderr отсутствует")
             if stdout:
                 stdout_text = stdout.decode()
                 logger.info(f"[CREATE] stdout от docker run: {stdout_text[:200]}")
+            else:
+                logger.warning(f"[CREATE] stdout отсутствует!")
             
+            logger.info(f"[CREATE] Проверка returncode: {result.returncode}")
             if result.returncode != 0:
                 error_output = stderr.decode() if stderr else stdout.decode()
+                if not error_output or not error_output.strip():
+                    error_output = stdout.decode() if stdout else "Неизвестная ошибка при создании контейнера"
                 logger.error(f"[CREATE] Ошибка создания контейнера: {error_output}")
                 logger.error(f"[CREATE] Команда была: {' '.join(cmd)}")
+                # Сохраняем ошибку для последующего использования
+                self._last_error = error_output.strip() if error_output else "Не удалось создать контейнер"
                 return False
             
-            self.container_id = stdout.decode().strip()
+            self.container_id = stdout.decode().strip() if stdout else ""
+            logger.info(f"[CREATE] Получен container_id: '{self.container_id}' (длина: {len(self.container_id)})")
             if not self.container_id:
-                logger.error(f"[CREATE] ❌ Пустой container_id после создания! stdout: {stdout.decode()}, stderr: {stderr.decode()}")
+                stdout_str = stdout.decode() if stdout else "НЕТ"
+                stderr_str = stderr.decode() if stderr else "НЕТ"
+                logger.error(f"[CREATE] ❌ Пустой container_id после создания! stdout: '{stdout_str}', stderr: '{stderr_str}'")
+                self._last_error = f"Пустой container_id. stdout: {stdout_str[:200]}, stderr: {stderr_str[:200]}"
                 return False
             
             self.status = "running"
@@ -814,7 +894,22 @@ class ContainerSandbox:
         logger.info(f"[SETUP] _run_setup_after_create вызван для миссии {self.mission_id}")
         try:
             import yaml
-            mission_dir = settings.MISSIONS_DIR / f"level_{self.level.lower()}" / self.mission_id
+            
+            # Определяем путь к миссии (стандартная или персональная)
+            if self.mission_id.startswith("personal_"):
+                # Персональная миссия: извлекаем username из mission_id
+                # Формат: personal_{username}_{readable_part}_{hash}
+                parts = self.mission_id.split("_", 2)
+                if len(parts) >= 2:
+                    username = parts[1]
+                    mission_dir = settings.MISSIONS_DIR / "personal" / username / self.mission_id
+                else:
+                    logger.warning(f"[SETUP] Не удалось извлечь username из mission_id: {self.mission_id}")
+                    mission_dir = settings.MISSIONS_DIR / f"level_{self.level.lower()}" / self.mission_id
+            else:
+                # Стандартная миссия
+                mission_dir = settings.MISSIONS_DIR / f"level_{self.level.lower()}" / self.mission_id
+            
             config_file = mission_dir / "mission.yaml"
             
             logger.info(f"[SETUP] Поиск конфигурации миссии: {config_file}")

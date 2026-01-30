@@ -36,14 +36,11 @@ Thumbs.db
 sandbox_data/
 images/cache/
 missions/progress/
+missions/personal/
 *.db
 *.sqlite
-
 
 # Podman/Docker
 *.tar
 *.img
 
-.backend.pid
-.frontend.pid
-/missions/personal

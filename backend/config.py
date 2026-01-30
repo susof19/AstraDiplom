@@ -94,6 +94,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "lm_studio"  # lm_studio, ollama, openai, heuristic
     LLM_API_URL: str = "http://localhost:1234/v1"  # URL для LM Studio (по умолчанию)
     LLM_MODEL: str = "local-model"  # Название модели
+    LM_STUDIO_PORT: int | None = None  # Порт LM Studio (используется скриптом start-demo-wsl.sh)
     OLLAMA_URL: str = "http://localhost:11434"  # URL для Ollama
     OPENAI_API_KEY: str = ""  # API ключ для OpenAI (если используется)
     

@@ -167,9 +167,22 @@ class User:
         """Создать нового пользователя"""
         session = db or User._get_db_static()
         try:
+            # Валидация username
+            if not username:
+                raise ValueError("Имя пользователя не может быть пустым")
+            
+            username = username.strip()
+            if not username:
+                raise ValueError("Имя пользователя не может состоять только из пробелов")
+            
+            if len(username) > 50:
+                raise ValueError("Имя пользователя не может быть длиннее 50 символов")
+            
+            # Проверка существования пользователя
             if User.exists(username, db=session):
                 raise ValueError(f"Пользователь {username} уже существует")
             
+            # Создание пользователя
             user = User(username, db=session)
             user.set_password(password)
             user.set_secret_code(secret_code)

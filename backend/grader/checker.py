@@ -25,10 +25,26 @@ class CheckResult(Enum):
 class MissionChecker:
     """Проверка выполнения конкретной миссии"""
     
-    def __init__(self, mission_id: str, level: str):
+    def __init__(self, mission_id: str, level: str, username: str = None):
         self.mission_id = mission_id
         self.level = level
-        self.mission_path = settings.MISSIONS_DIR / f"level_{level.lower()}" / mission_id
+        self.username = username
+        
+        # Определяем путь к миссии
+        # Если это персональная миссия (начинается с personal_{username}_)
+        if mission_id.startswith("personal_") and username:
+            # Извлекаем username из mission_id, если он не передан явно
+            # Формат: personal_{username}_{readable_part}_{hash}
+            parts = mission_id.split("_", 2)
+            if len(parts) >= 2:
+                extracted_username = parts[1]
+                self.mission_path = settings.MISSIONS_DIR / "personal" / extracted_username / mission_id
+            else:
+                # Если не удалось извлечь, используем переданный username
+                self.mission_path = settings.MISSIONS_DIR / "personal" / username / mission_id
+        else:
+            # Стандартная миссия
+            self.mission_path = settings.MISSIONS_DIR / f"level_{level.lower()}" / mission_id
         
     async def load_mission_config(self) -> Optional[Dict[str, Any]]:
         """Загрузить конфигурацию миссии"""
@@ -39,7 +55,10 @@ class MissionChecker:
         
         try:
             with open(config_file, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f)
+                config = yaml.safe_load(f)
+                if config:
+                    logger.info(f"Конфигурация миссии {self.mission_id} успешно загружена из {config_file}")
+                return config
         except Exception as e:
             logger.error(f"Ошибка загрузки конфигурации: {e}")
             return None
@@ -390,7 +409,7 @@ class Grader:
     """Главный класс для проверки миссий"""
     
     @staticmethod
-    async def grade_mission(mission_id: str, level: str, sandbox: ContainerSandbox) -> Dict[str, Any]:
+    async def grade_mission(mission_id: str, level: str, sandbox: ContainerSandbox, username: str = None) -> Dict[str, Any]:
         """Проверить выполнение миссии"""
-        checker = MissionChecker(mission_id, level)
+        checker = MissionChecker(mission_id, level, username)
         return await checker.check(sandbox)

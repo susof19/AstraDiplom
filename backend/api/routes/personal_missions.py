@@ -5,6 +5,8 @@ from pydantic import BaseModel
 import logging
 import yaml
 from pathlib import Path
+import re
+from difflib import SequenceMatcher
 
 from backend.config import settings
 from backend.missions.mission_generator import get_mission_generator
@@ -27,6 +29,169 @@ class ChatMessage(BaseModel):
     content: str
 
 
+def _normalize_text(text: str) -> str:
+    """Нормализация текста для сравнения"""
+    if not text:
+        return ""
+    # Приводим к нижнему регистру и убираем лишние пробелы
+    text = text.lower().strip()
+    # Убираем знаки препинания
+    text = re.sub(r'[^\w\s]', ' ', text)
+    # Убираем множественные пробелы
+    text = re.sub(r'\s+', ' ', text)
+    return text
+
+
+def _calculate_similarity(text1: str, text2: str) -> float:
+    """Вычисляет схожесть двух текстов (0.0 - 1.0)"""
+    if not text1 or not text2:
+        return 0.0
+    
+    norm1 = _normalize_text(text1)
+    norm2 = _normalize_text(text2)
+    
+    if not norm1 or not norm2:
+        return 0.0
+    
+    # Используем SequenceMatcher для вычисления схожести
+    similarity = SequenceMatcher(None, norm1, norm2).ratio()
+    
+    # Также проверяем наличие ключевых слов
+    words1 = set(norm1.split())
+    words2 = set(norm2.split())
+    
+    if words1 and words2:
+        # Вычисляем долю общих слов
+        common_words = words1.intersection(words2)
+        word_similarity = len(common_words) / max(len(words1), len(words2))
+        # Комбинируем метрики
+        similarity = max(similarity, word_similarity * 0.8)
+    
+    return similarity
+
+
+async def _find_similar_mission(
+    user_request: str,
+    level: str,
+    username: str
+) -> Optional[Dict[str, Any]]:
+    """Найти похожую существующую миссию"""
+    normalized_request = _normalize_text(user_request)
+    
+    # Извлекаем ключевые слова из запроса
+    request_words = set(normalized_request.split())
+    # Убираем стоп-слова
+    stop_words = {"хочу", "научиться", "научить", "создать", "создавать", "на", "в", "с", "из", "по", "как", "что"}
+    request_keywords = request_words - stop_words
+    
+    best_match = None
+    best_similarity = 0.0
+    threshold = 0.6  # Порог схожести (60%)
+    
+    # Проверяем стандартные миссии
+    for level_dir in ["a", "b"]:
+        level_path = settings.MISSIONS_DIR / f"level_{level_dir}"
+        if not level_path.exists():
+            continue
+        
+        for mission_dir in level_path.iterdir():
+            if not mission_dir.is_dir():
+                continue
+            
+            config_file = mission_dir / "mission.yaml"
+            if not config_file.exists():
+                continue
+            
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                    if not config:
+                        continue
+                    
+                    # Проверяем схожесть с названием
+                    name_sim = _calculate_similarity(user_request, config.get("name", ""))
+                    
+                    # Проверяем схожесть с описанием
+                    desc_sim = _calculate_similarity(user_request, config.get("description", ""))
+                    
+                    # Проверяем схожесть с целями
+                    objectives = config.get("objectives", [])
+                    obj_text = " ".join(str(obj) for obj in objectives)
+                    obj_sim = _calculate_similarity(user_request, obj_text)
+                    
+                    # Вычисляем общую схожесть (максимум из всех метрик)
+                    total_similarity = max(name_sim, desc_sim, obj_sim)
+                    
+                    # Дополнительная проверка по ключевым словам
+                    mission_text = f"{config.get('name', '')} {config.get('description', '')} {obj_text}"
+                    mission_words = set(_normalize_text(mission_text).split())
+                    mission_keywords = mission_words - stop_words
+                    
+                    if request_keywords and mission_keywords:
+                        keyword_match = len(request_keywords.intersection(mission_keywords)) / len(request_keywords)
+                        total_similarity = max(total_similarity, keyword_match * 0.9)
+                    
+                    if total_similarity > best_similarity and total_similarity >= threshold:
+                        best_similarity = total_similarity
+                        best_match = {
+                            "id": mission_dir.name,
+                            "level": level_dir.upper(),
+                            "is_personal": False,
+                            "similarity": total_similarity,
+                            **config
+                        }
+            except Exception as e:
+                logger.warning(f"Ошибка при проверке миссии {mission_dir.name}: {e}")
+                continue
+    
+    # Проверяем персональные миссии пользователя
+    personal_missions_dir = settings.MISSIONS_DIR / "personal" / username
+    if personal_missions_dir.exists():
+        for mission_dir in personal_missions_dir.iterdir():
+            if not mission_dir.is_dir():
+                continue
+            
+            config_file = mission_dir / "mission.yaml"
+            if not config_file.exists():
+                continue
+            
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                    if not config:
+                        continue
+                    
+                    mission_level = config.get("level", "A").upper()
+                    # Проверяем только миссии того же уровня
+                    if mission_level != level.upper():
+                        continue
+                    
+                    # Проверяем схожесть
+                    name_sim = _calculate_similarity(user_request, config.get("name", ""))
+                    desc_sim = _calculate_similarity(user_request, config.get("description", ""))
+                    objectives = config.get("objectives", [])
+                    obj_text = " ".join(str(obj) for obj in objectives)
+                    obj_sim = _calculate_similarity(user_request, obj_text)
+                    
+                    total_similarity = max(name_sim, desc_sim, obj_sim)
+                    
+                    if total_similarity > best_similarity and total_similarity >= threshold:
+                        best_similarity = total_similarity
+                        best_match = {
+                            "id": mission_dir.name,
+                            "level": mission_level,
+                            "is_personal": True,
+                            "owner": username,
+                            "similarity": total_similarity,
+                            **config
+                        }
+            except Exception as e:
+                logger.warning(f"Ошибка при проверке персональной миссии {mission_dir.name}: {e}")
+                continue
+    
+    return best_match
+
+
 @router.post("/personal-missions/generate")
 async def generate_personal_mission(
     request: GenerateMissionRequest,
@@ -37,6 +202,27 @@ async def generate_personal_mission(
     if request.level.upper() not in ["A", "B"]:
         raise HTTPException(status_code=400, detail="Уровень должен быть A или B")
     
+    # Проверяем, нет ли уже похожей миссии
+    similar_mission = await _find_similar_mission(
+        request.request,
+        request.level.upper(),
+        username
+    )
+    
+    if similar_mission:
+        similarity_percent = int(similar_mission.get("similarity", 0) * 100)
+        logger.info(f"Найдена похожая миссия {similar_mission['id']} (схожесть: {similarity_percent}%)")
+        
+        return {
+            "success": True,
+            "mission_id": similar_mission["id"],
+            "message": f"Найдена похожая миссия! (схожесть: {similarity_percent}%)",
+            "mission": similar_mission,
+            "is_existing": True,
+            "similarity": similarity_percent
+        }
+    
+    # Если похожей миссии нет, генерируем новую
     generator = get_mission_generator()
     
     result = await generator.generate_mission(
@@ -72,7 +258,8 @@ async def generate_personal_mission(
             "id": mission_id,
             "level": request.level.upper(),
             **mission_config
-        }
+        },
+        "is_existing": False
     }
 
 
@@ -107,23 +294,11 @@ async def chat_for_mission(
                 level = "B"
             break
     
-    # Генерируем ответ через LLM
-    response = await generator._generate_with_lm_studio(
+    # Генерируем ответ через LLM для чата (без YAML)
+    response = await generator._generate_chat_response(
         last_message.content,
-        conversation_history[:-1]  # Без последнего сообщения, оно будет в промпте
-    )
-    
-    if not response:
-        # Fallback на другие провайдеры
-        if generator.provider_type == 'ollama':
-            response = await generator._generate_with_ollama(
-                last_message.content,
-                conversation_history[:-1]
-            )
-        elif generator.provider_type == 'openai':
-            response = await generator._generate_with_openai(
-                last_message.content,
-                conversation_history[:-1]
+        conversation_history[:-1],  # Без последнего сообщения, оно будет в промпте
+        level
             )
     
     if not response:
