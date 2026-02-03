@@ -1,0 +1,30 @@
+name: Создать текстовый файл через графический редактор Kate
+description: Откройте текстовый редактор (Kate) через меню, создайте файл hello_gui.txt
+  на рабочем столе и запишите в него строку «Привет, Astra!», затем сохраните
+level: A
+difficulty: 2
+estimated_time: 5
+objectives:
+- Открыть текстовый редактор Kate через меню
+- Создать новый файл
+- Записать текст «Привет, Astra!»
+- Сохранить файл как hello_gui.txt на рабочем столе
+hints:
+- Текстовый редактор можно найти в Меню → Офис → Kate (или другой редактор)
+- Рабочий стол находится в ~/Desktop
+- Для сохранения используйте Ctrl+S или Файл → Сохранить
+setup:
+  directories:
+  - /root/Desktop
+checks:
+- name: Файл hello_gui.txt создан на рабочем столе
+  type: file_exists
+  path: /root/Desktop/hello_gui.txt
+  file_type: file
+  points: 40
+- name: Файл содержит правильный текст
+  type: file_content
+  path: /root/Desktop/hello_gui.txt
+  operator: contains
+  expected: Привет, Astra!
+  points: 60

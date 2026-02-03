@@ -5,6 +5,7 @@ import MissionList from './pages/MissionList'
 import MissionDetail from './pages/MissionDetail'
 import Dashboard from './pages/Dashboard'
 import AdminPanel from './pages/AdminPanel'
+import Profile from './pages/Profile'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import RecoverPassword from './pages/RecoverPassword'
@@ -55,6 +56,14 @@ function AppRoutes() {
           element={
             <PrivateRoute>
               <AdminPanel />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <Profile />
             </PrivateRoute>
           }
         />

@@ -1,5 +1,5 @@
 """API endpoints для аутентификации"""
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Body
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import timedelta
@@ -445,4 +445,223 @@ async def change_password(
     user.save(db=db)
     
     return {"message": "Пароль успешно изменён"}
+
+
+class UpdateUsernameRequest(BaseModel):
+    """Запрос на изменение имени пользователя"""
+    new_username: str = Field(..., min_length=3, max_length=50, description="Новое имя пользователя")
+    
+    @field_validator('new_username')
+    @classmethod
+    def validate_new_username(cls, v: str) -> str:
+        """Валидация нового username"""
+        if not v:
+            raise ValueError("Имя пользователя не может быть пустым")
+        
+        v = v.strip()
+        
+        if not v:
+            raise ValueError("Имя пользователя не может состоять только из пробелов")
+        
+        if len(v) < 3:
+            raise ValueError("Имя пользователя должно содержать минимум 3 символа")
+        
+        if len(v) > 50:
+            raise ValueError("Имя пользователя не может быть длиннее 50 символов")
+        
+        # Строгая проверка: только латинские буквы, цифры, подчеркивание и дефис
+        if re.search(r'[^\x00-\x7F]', v):
+            if re.search(r'[а-яА-ЯёЁ]', v):
+                raise ValueError(
+                    "Имя пользователя может содержать только латинские буквы (a-z, A-Z), цифры (0-9), подчеркивание (_) и дефис (-). Кириллица и другие нелатинские символы не допускаются."
+                )
+            else:
+                raise ValueError(
+                    "Имя пользователя может содержать только латинские буквы (a-z, A-Z), цифры (0-9), подчеркивание (_) и дефис (-). Другие символы не допускаются."
+                )
+        
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError(
+                "Имя пользователя может содержать только латинские буквы (a-z, A-Z), цифры (0-9), подчеркивание (_) и дефис (-). Другие символы не допускаются."
+            )
+        
+        if v.startswith('-') or v.startswith('_') or v.endswith('-') or v.endswith('_'):
+            raise ValueError("Имя пользователя не может начинаться или заканчиваться дефисом или подчеркиванием")
+        
+        if v.isdigit():
+            raise ValueError("Имя пользователя не может состоять только из цифр")
+        
+        if not re.search(r'[a-zA-Z]', v):
+            raise ValueError("Имя пользователя должно содержать хотя бы одну латинскую букву")
+        
+        return v
+
+
+class DeleteAccountRequest(BaseModel):
+    """Запрос на удаление аккаунта"""
+    password: str = Field(..., description="Пароль для подтверждения удаления")
+
+
+@router.put("/username", status_code=status.HTTP_200_OK)
+async def update_username(
+    request: UpdateUsernameRequest,
+    username: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Изменить имя пользователя"""
+    import shutil
+    from pathlib import Path
+    from backend.config import settings
+    
+    user = User(username, db=db)
+    if not user.load(db=db):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь не найден"
+        )
+    
+    try:
+        old_username = user.update_username(request.new_username, db=db)
+        
+        # Переименовываем директорию с персональными миссиями
+        old_missions_dir = settings.MISSIONS_DIR / "personal" / old_username
+        new_missions_dir = settings.MISSIONS_DIR / "personal" / request.new_username
+        
+        if old_missions_dir.exists():
+            if new_missions_dir.exists():
+                # Если новая директория уже существует, объединяем содержимое
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Директория {new_missions_dir} уже существует, объединяем содержимое")
+                # Перемещаем содержимое из старой в новую
+                for item in old_missions_dir.iterdir():
+                    dest = new_missions_dir / item.name
+                    if dest.exists():
+                        # Если файл уже существует, пропускаем
+                        continue
+                    shutil.move(str(item), str(dest))
+                # Удаляем старую директорию
+                old_missions_dir.rmdir()
+            else:
+                # Просто переименовываем
+                old_missions_dir.rename(new_missions_dir)
+        
+        # Переименовываем файл прогресса
+        old_progress_file = settings.SANDBOX_DATA_DIR / f"progress_{old_username}.json"
+        new_progress_file = settings.SANDBOX_DATA_DIR / f"progress_{request.new_username}.json"
+        
+        if old_progress_file.exists() and not new_progress_file.exists():
+            old_progress_file.rename(new_progress_file)
+        
+        return {
+            "message": "Имя пользователя успешно изменено",
+            "old_username": old_username,
+            "new_username": request.new_username
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Ошибка изменения имени пользователя: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ошибка при изменении имени пользователя"
+        )
+
+
+@router.delete("/account", status_code=status.HTTP_200_OK)
+async def delete_account(
+    request: DeleteAccountRequest = Body(...),
+    username: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Удалить аккаунт пользователя"""
+    import shutil
+    from pathlib import Path
+    from backend.config import settings
+    from backend.sandbox.container import ContainerManager
+    
+    user = User(username, db=db)
+    if not user.load(db=db):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь не найден"
+        )
+    
+    # Проверка пароля
+    if not user.verify_password(request.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный пароль"
+        )
+    
+    try:
+        # Удаляем персональные миссии
+        personal_missions_dir = settings.MISSIONS_DIR / "personal" / username
+        if personal_missions_dir.exists():
+            shutil.rmtree(personal_missions_dir)
+        
+        # Удаляем файл прогресса
+        progress_file = settings.SANDBOX_DATA_DIR / f"progress_{username}.json"
+        if progress_file.exists():
+            progress_file.unlink()
+        
+        # Останавливаем и удаляем активные контейнеры пользователя
+        try:
+            container_manager = ContainerManager()
+            # Получаем все контейнеры пользователя
+            containers = container_manager.list_containers()
+            for container_id in containers:
+                try:
+                    container = container_manager.get_container(container_id)
+                    if container and container.username == username:
+                        container_manager.stop_container(container_id)
+                        container_manager.remove_container(container_id)
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Ошибка удаления контейнера {container_id}: {e}")
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Ошибка при очистке контейнеров: {e}")
+        
+        # Удаляем пользователя из БД
+        user.delete(db=db)
+        
+        return {"message": "Аккаунт успешно удалён"}
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Ошибка удаления аккаунта: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ошибка при удалении аккаунта"
+        )
+
+
+@router.get("/secret-code-info", status_code=status.HTTP_200_OK)
+async def get_secret_code_info(
+    username: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Получить информацию о секретном коде (без самого кода)"""
+    user = User(username, db=db)
+    if not user.load(db=db):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь не найден"
+        )
+    
+    # Проверяем, установлен ли секретный код
+    has_secret_code = user.secret_code_hash is not None
+    
+    return {
+        "has_secret_code": has_secret_code,
+        "message": "Секретный код установлен" if has_secret_code else "Секретный код не установлен"
+    }
 

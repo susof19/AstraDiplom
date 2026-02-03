@@ -1,5 +1,6 @@
 """API endpoints для системы подсказок"""
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Body
+from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
 import logging
 
@@ -12,6 +13,18 @@ from backend.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class ChatMessage(BaseModel):
+    """Сообщение в чате"""
+    role: str  # "user" или "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    """Запрос на чат с ботом подсказок"""
+    message: str
+    conversation_history: Optional[List[ChatMessage]] = []
 
 
 def _detect_os_from_image(image: Optional[str]) -> str:
@@ -334,3 +347,115 @@ async def get_hint_statistics(
             "failed_patterns": len(user_patterns.get("failed_patterns", []))
         }
     }
+
+
+@router.post("/hints/chat/{mission_id}")
+async def chat_with_hint_bot(
+    mission_id: str,
+    request: ChatRequest,
+    username: str = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """Чат с ботом подсказок в стиле диалога"""
+    from backend.hints.llm_hints import get_llm_hint_provider
+    import yaml
+    
+    # Получаем песочницу для миссии
+    sandbox = await sandbox_manager.get_sandbox(mission_id)
+    if not sandbox:
+        raise HTTPException(status_code=404, detail="Песочница не найдена. Запустите песочницу для получения подсказок.")
+    
+    # Определяем уровень миссии
+    level = sandbox.level or "A"
+    
+    # Определяем ОС из образа песочницы
+    os_type = _detect_os_from_image(sandbox.image if hasattr(sandbox, 'image') else None)
+    
+    # Загружаем конфигурацию миссии для контекста
+    mission_path = settings.MISSIONS_DIR / f"level_{level.lower()}" / mission_id
+    config_file = mission_path / "mission.yaml"
+    mission_config = {}
+    if config_file.exists():
+        with open(config_file, 'r', encoding='utf-8') as f:
+            mission_config = yaml.safe_load(f) or {}
+    
+    # Получаем последние действия пользователя для контекста
+    tracker = get_action_tracker(username)
+    recent_actions = [a for a in tracker.actions if a.get("mission_id") == mission_id][-5:]
+    
+    # Получаем LLM провайдер
+    llm_provider = get_llm_hint_provider()
+    
+    if not llm_provider.enabled:
+        return {
+            "message": "Извините, чат-бот подсказок временно недоступен. Используйте обычные подсказки.",
+            "role": "assistant"
+        }
+    
+    # Формируем контекст для чата
+    mission_description = mission_config.get("description", "")
+    objectives = mission_config.get("objectives", [])
+    
+    # Формируем системный промпт для чат-бота
+    system_prompt = f"""Ты дружелюбный помощник-бот для учебного тренажера Linux. Твоя задача - помогать пользователю выполнять задания, давая подсказки в стиле диалога.
+
+КОНТЕКСТ МИССИИ:
+Задача: {mission_description}
+Цели: {', '.join(objectives[:5]) if objectives else 'Не указаны'}
+Уровень: {level}
+
+{'ВАЖНО: Пользователь - НОВИЧОК. Объясняй ТОЛЬКО через GUI (клик, меню, кнопки). НИКОГДА не предлагай терминал или команды.' if level.upper() == 'A' else 'Пользователь может использовать терминал и команды.'}
+
+ПОСЛЕДНИЕ ДЕЙСТВИЯ ПОЛЬЗОВАТЕЛЯ:
+{chr(10).join([f"- {a.get('action_type', 'unknown')}: {a.get('command', '')}" for a in recent_actions[-3:]]) if recent_actions else 'Нет недавних действий'}
+
+ПРАВИЛА ОБЩЕНИЯ:
+- Отвечай дружелюбно и понятно, как в обычном чате
+- Давай подсказки, но не раскрывай полное решение сразу
+- Задавай уточняющие вопросы, если нужно
+- Используй эмодзи для дружелюбности (но не переборщи)
+- Отвечай кратко (2-3 предложения максимум)
+- Для уровня A: объясняй только через GUI, НИКОГДА не предлагай терминал
+- Учитывай особенности операционной системы: {os_type}
+
+Начни диалог дружелюбно и предложи помощь."""
+
+    # Формируем историю диалога
+    messages = []
+    
+    # Добавляем системное сообщение (если поддерживается)
+    # Для большинства моделей через LM Studio системное сообщение можно добавить отдельно
+    
+    # Добавляем историю диалога
+    for msg in request.conversation_history[-10:]:  # Берем последние 10 сообщений
+        messages.append({
+            "role": msg.role,
+            "content": msg.content
+        })
+    
+    # Добавляем текущее сообщение пользователя
+    messages.append({
+        "role": "user",
+        "content": request.message
+    })
+    
+    # Генерируем ответ через LLM
+    try:
+        # Используем специальный метод для чата
+        response = await llm_provider._chat_with_bot(
+            system_prompt=system_prompt,
+            messages=messages,
+            mission_config=mission_config,
+            level=level,
+            os_type=os_type
+        )
+        
+        return {
+            "message": response,
+            "role": "assistant"
+        }
+    except Exception as e:
+        logger.error(f"Ошибка генерации ответа чат-бота: {e}", exc_info=True)
+        return {
+            "message": "Извините, произошла ошибка. Попробуйте переформулировать вопрос или используйте обычные подсказки.",
+            "role": "assistant"
+        }

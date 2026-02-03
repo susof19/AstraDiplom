@@ -15,30 +15,6 @@ else
     echo "Предупреждение: локаль ru_RU.UTF-8 не найдена, используется C.UTF-8" >&2
 fi
 
-# Инициализация кэша apt для Synaptic Package Manager
-# Создаём необходимые директории и файлы для работы apt и Synaptic
-mkdir -p /var/lib/apt/lists/partial /var/cache/apt/archives/partial /var/lib/dpkg/updates || true
-chmod 755 /var/lib/apt/lists/partial /var/cache/apt/archives/partial /var/lib/dpkg/updates || true
-touch /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock || true
-chmod 644 /var/lib/apt/lists/lock /var/cache/apt/archives/lock || true
-chmod 640 /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock || true
-
-# Обновляем кэш пакетов при запуске контейнера (если кэш пустой)
-# Делаем это асинхронно в фоне, чтобы не блокировать запуск VNC
-# Проверяем наличие файлов списков пакетов (не считая lock и partial)
-if [ -z "$(ls -A /var/lib/apt/lists 2>/dev/null | grep -v '^lock$' | grep -v '^partial$')" ]; then
-    # Запускаем инициализацию кэша в фоне
-    (
-        echo "Инициализация кэша пакетов для Synaptic (в фоне)..." >&2
-        apt-get update > /dev/null 2>&1 || true
-        # Генерируем кэш для Synaptic (тоже в фоне)
-        apt-cache gencaches > /dev/null 2>&1 || true
-        echo "Инициализация кэша пакетов завершена" >&2
-    ) &
-    APT_CACHE_INIT_PID=$!
-    # Не ждем завершения, продолжаем запуск VNC
-fi
-
 # Start Xvfb
 Xvfb :1 -screen 0 1024x768x24 > /dev/null 2>&1 &
 XVFB_PID=$!

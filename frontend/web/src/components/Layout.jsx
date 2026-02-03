@@ -145,6 +145,10 @@ function Layout({ children }) {
               <span className="nav-icon">🎯</span>
               <span>Миссии</span>
             </Link>
+            <Link to="/profile" className={`nav-item ${location.pathname === '/profile' ? 'active' : ''}`}>
+              <span className="nav-icon">👤</span>
+              <span>Профиль</span>
+            </Link>
             {isAdmin && (
               <Link to="/admin" className={`nav-item ${location.pathname.startsWith('/admin') ? 'active' : ''}`}>
                 <span className="nav-icon">⚙️</span>

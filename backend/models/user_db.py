@@ -162,6 +162,58 @@ class User:
         from backend.database import SessionLocal
         return SessionLocal()
     
+    def update_username(self, new_username: str, db: Optional[Session] = None):
+        """Изменить имя пользователя"""
+        session = db or self._get_db()
+        try:
+            # Валидация нового username
+            if not new_username:
+                raise ValueError("Имя пользователя не может быть пустым")
+            
+            new_username = new_username.strip()
+            if not new_username:
+                raise ValueError("Имя пользователя не может состоять только из пробелов")
+            
+            if len(new_username) > 50:
+                raise ValueError("Имя пользователя не может быть длиннее 50 символов")
+            
+            # Проверка существования нового username
+            if User.exists(new_username, db=session):
+                raise ValueError(f"Пользователь {new_username} уже существует")
+            
+            # Обновление в БД
+            user_model = session.query(UserModel).filter(UserModel.id == self.id).first()
+            if not user_model:
+                raise ValueError("Пользователь не найден")
+            
+            old_username = self.username
+            user_model.username = new_username
+            session.commit()
+            self.username = new_username
+            
+            return old_username
+        except Exception as e:
+            session.rollback()
+            raise
+        finally:
+            if not db and not self._db:
+                session.close()
+    
+    def delete(self, db: Optional[Session] = None):
+        """Удалить пользователя из базы данных"""
+        session = db or self._get_db()
+        try:
+            user_model = session.query(UserModel).filter(UserModel.id == self.id).first()
+            if user_model:
+                session.delete(user_model)
+                session.commit()
+        except Exception as e:
+            session.rollback()
+            raise
+        finally:
+            if not db and not self._db:
+                session.close()
+    
     @staticmethod
     def create(username: str, password: str, secret_code: str, db: Optional[Session] = None) -> 'User':
         """Создать нового пользователя"""

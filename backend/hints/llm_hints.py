@@ -1,6 +1,7 @@
 """LLM-based система подсказок с поддержкой локальных и облачных моделей"""
 import json
 import logging
+import asyncio
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
@@ -532,6 +533,203 @@ class LLMHintProvider:
 - Будь лаконичным, без длинных инструкций"""
         
         return prompt
+    
+    async def _chat_with_bot(
+        self,
+        system_prompt: str,
+        messages: List[Dict[str, str]],
+        mission_config: Dict[str, Any],
+        level: str,
+        os_type: Optional[str] = None
+    ) -> str:
+        """Генерация ответа чат-бота в стиле диалога"""
+        
+        if not self.enabled:
+            return "Извините, чат-бот временно недоступен."
+        
+        if self.provider_type == 'lm_studio':
+            return await self._lm_studio_chat(system_prompt, messages)
+        elif self.provider_type == 'ollama':
+            return await self._ollama_chat(system_prompt, messages)
+        elif self.provider_type == 'openai':
+            return await self._openai_chat(system_prompt, messages)
+        else:
+            # Fallback на эвристику
+            return "Я готов помочь! Задайте вопрос о задании."
+    
+    async def _lm_studio_chat(
+        self,
+        system_prompt: str,
+        messages: List[Dict[str, str]]
+    ) -> str:
+        """Чат через LM Studio"""
+        if not AIOHTTP_AVAILABLE:
+            return "Извините, чат-бот временно недоступен."
+        
+        # Проверяем доступность модели
+        if not await self._check_lm_studio_model():
+            return "Извините, модель временно недоступна."
+        
+        # Формируем сообщения для LM Studio
+        chat_messages = []
+        
+        # Добавляем системное сообщение
+        chat_messages.append({
+            "role": "system",
+            "content": system_prompt
+        })
+        
+        # Добавляем историю диалога
+        chat_messages.extend(messages)
+        
+        payload = {
+            "model": self.model_name,
+            "messages": chat_messages,
+            "temperature": 0.7,
+            "max_tokens": 200,  # Ограничиваем длину ответа
+            "stream": False
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.post(
+                    f"{self.api_url}/chat/completions",
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        choices = data.get("choices", [])
+                        if choices:
+                            content = choices[0].get("message", {}).get("content", "").strip()
+                            if content:
+                                # Очищаем ответ
+                                content = ' '.join(content.split())  # Убираем лишние пробелы
+                                if len(content) > 300:
+                                    # Обрезаем до 300 символов
+                                    sentences = content.split('.')
+                                    if len(sentences) > 1:
+                                        content = '. '.join(sentences[:2]) + '.'
+                                    else:
+                                        content = content[:297] + '...'
+                                return content
+                    else:
+                        logger.warning(f"LM Studio вернул код {response.status}")
+            except Exception as e:
+                logger.error(f"Ошибка чата через LM Studio: {e}", exc_info=True)
+        
+        return "Извините, произошла ошибка. Попробуйте еще раз."
+    
+    async def _ollama_chat(
+        self,
+        system_prompt: str,
+        messages: List[Dict[str, str]]
+    ) -> str:
+        """Чат через Ollama"""
+        if not AIOHTTP_AVAILABLE:
+            return "Извините, чат-бот временно недоступен."
+        
+        # Формируем промпт для Ollama
+        conversation = "\n".join([
+            f"{'Пользователь' if msg['role'] == 'user' else 'Ассистент'}: {msg['content']}"
+            for msg in messages
+        ])
+        
+        prompt = f"""{system_prompt}
+
+{conversation}
+
+Ассистент:"""
+        
+        ollama_url = getattr(settings, 'OLLAMA_URL', 'http://localhost:11434')
+        payload = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.7,
+                "num_predict": 200
+            }
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.post(
+                    f"{ollama_url}/api/generate",
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=15)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        content = data.get("response", "").strip()
+                        if content:
+                            content = ' '.join(content.split())
+                            if len(content) > 300:
+                                sentences = content.split('.')
+                                if len(sentences) > 1:
+                                    content = '. '.join(sentences[:2]) + '.'
+                                else:
+                                    content = content[:297] + '...'
+                            return content
+            except Exception as e:
+                logger.error(f"Ошибка чата через Ollama: {e}", exc_info=True)
+        
+        return "Извините, произошла ошибка. Попробуйте еще раз."
+    
+    async def _openai_chat(
+        self,
+        system_prompt: str,
+        messages: List[Dict[str, str]]
+    ) -> str:
+        """Чат через OpenAI"""
+        if not AIOHTTP_AVAILABLE:
+            return "Извините, чат-бот временно недоступен."
+        
+        api_key = getattr(settings, 'OPENAI_API_KEY', '')
+        if not api_key:
+            return "Извините, API ключ не настроен."
+        
+        chat_messages = [
+            {"role": "system", "content": system_prompt}
+        ]
+        chat_messages.extend(messages)
+        
+        payload = {
+            "model": self.model_name or "gpt-3.5-turbo",
+            "messages": chat_messages,
+            "temperature": 0.7,
+            "max_tokens": 200
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                }
+                async with session.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=15)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                        if content:
+                            content = ' '.join(content.split())
+                            if len(content) > 300:
+                                sentences = content.split('.')
+                                if len(sentences) > 1:
+                                    content = '. '.join(sentences[:2]) + '.'
+                                else:
+                                    content = content[:297] + '...'
+                            return content
+            except Exception as e:
+                logger.error(f"Ошибка чата через OpenAI: {e}", exc_info=True)
+        
+        return "Извините, произошла ошибка. Попробуйте еще раз."
     
     async def test_connection(self) -> Dict[str, Any]:
         """Проверить подключение к LLM сервису"""
