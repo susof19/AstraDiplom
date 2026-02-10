@@ -5,7 +5,9 @@ import SandboxViewer from '../components/SandboxViewer'
 import GradingResult from '../components/GradingResult'
 import HintsPanel from '../components/HintsPanel'
 import './MissionDetail.css'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+
+const START_COOLDOWN_MS = 30000
 
 function MissionDetail() {
   const { missionId } = useParams()
@@ -13,6 +15,8 @@ function MissionDetail() {
   const queryClient = useQueryClient()
   const [showStopWarning, setShowStopWarning] = useState(false)
   const [gradingResult, setGradingResult] = useState(null)
+  const [startButtonCooldown, setStartButtonCooldown] = useState(false)
+  const cooldownTimerRef = useRef(null)
 
   const { data: mission, isLoading } = useQuery({
     queryKey: ['mission', missionId],
@@ -61,6 +65,24 @@ function MissionDetail() {
       setShowStopWarning(false)
     }
   })
+
+  // Сброс таймера кулдауна при размонтировании
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current)
+    }
+  }, [])
+
+  const handleStartSandbox = () => {
+    if (startButtonCooldown || createSandboxMutation.isLoading) return
+    setStartButtonCooldown(true)
+    if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current)
+    cooldownTimerRef.current = setTimeout(() => {
+      setStartButtonCooldown(false)
+      cooldownTimerRef.current = null
+    }, START_COOLDOWN_MS)
+    createSandboxMutation.mutate()
+  }
 
   const checkMissionMutation = useMutation({
     mutationFn: () => checkMission(missionId, mission?.level),
@@ -165,11 +187,15 @@ function MissionDetail() {
             </button>
           ) : (
             <button
-              onClick={() => createSandboxMutation.mutate()}
-              disabled={createSandboxMutation.isLoading}
+              onClick={handleStartSandbox}
+              disabled={createSandboxMutation.isLoading || startButtonCooldown}
               className="btn btn-primary"
             >
-              {createSandboxMutation.isLoading ? 'Запуск...' : '🚀 Запустить песочницу'}
+              {createSandboxMutation.isLoading
+                ? 'Запуск...'
+                : startButtonCooldown
+                  ? 'Подождите 30 сек...'
+                  : '🚀 Запустить песочницу'}
             </button>
           )}
           <button

@@ -31,7 +31,7 @@ function Login() {
     <div className="auth-page">
       <div className="auth-container">
         <h1>Вход в систему</h1>
-        <p className="auth-subtitle">Astra Linux Training Simulator</p>
+        <p className="auth-subtitle">Тренажер Astra Linux</p>
 
         {error && <div className="error-message">{error}</div>}
 

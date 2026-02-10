@@ -1,53 +1,50 @@
 name: "Поиск текста в файле"
-description: "В файле Documents/logs.txt найдите все строки (регистр не важен) с текстом ASTRA и сохраните результат в файл found.txt в домашней папке."
+description: "В файле Documents/logs.txt найдите все строки (регистр не важен) с текстом ОШИБКА и сохраните результат в файл found.txt в домашней папке."
 level: "B"
 difficulty: 2
 estimated_time: 5
 
 objectives:
-  - "Открыть терминал"
-  - "Найти все строки с текстом ASTRA в файле Documents/logs.txt"
+  - "Найти все строки с текстом ОШИБКА в файле Documents/logs.txt"
   - "Сохранить результат в файл found.txt в домашней папке"
 
 hints:
-  - "Терминал можно открыть через Меню → Терминал"
-  - "Для поиска используйте команду: grep -i 'ASTRA' Documents/logs.txt > found.txt"
+  - "Посмотреть файлы: ls или ls Documents"
+  - "Для поиска используйте команду: grep -i 'ОШИБКА' Documents/logs.txt > found.txt"
   - "Флаг -i делает поиск без учета регистра"
   - "Проверьте результат командой: cat found.txt"
 
 setup:
   directories:
-    - "/root/Documents"
+    - "/home/sandboxuser/Documents"
   files:
-    - path: "/root/Documents/logs.txt"
+    - path: "/home/sandboxuser/Documents/logs.txt"
       content: |
-        Система ASTRA Linux запущена
-        Проверка безопасности
-        ASTRA система работает стабильно
+        Сервис запущен успешно
+        Проверка конфигурации
+        ОШИБКА: таймаут соединения
         Логирование событий
-        Астра - надежная система
-        Критическая ошибка
-        ASTRA Linux версия 1.7
+        Критическая ОШИБКА доступа
+        Соединение восстановлено
+        ОШИБКА при записи в файл
       mode: "644"
-  commands:
-    - "export DISPLAY=:1 && fly-term > /dev/null 2>&1 &"
 
 checks:
   - name: "Файл found.txt существует в домашней папке"
     type: "file_exists"
-    path: "/root/found.txt"
+    path: "/home/sandboxuser/found.txt"
     file_type: "file"
     points: 40
-  - name: "Файл содержит строки с ASTRA"
+  - name: "Файл содержит строки с ОШИБКА"
     type: "command_output"
-    command: "grep -i 'ASTRA' /root/found.txt 2>/dev/null | wc -l"
+    command: "grep -i 'ОШИБКА' /home/sandboxuser/found.txt 2>/dev/null | wc -l"
     operator: "greater_than"
     expected: "0"
     points: 30
   - name: "Файл содержит правильные строки"
     type: "command_output"
-    command: "grep -i 'ASTRA' /root/found.txt 2>/dev/null | head -1"
+    command: "grep -i 'ОШИБКА' /home/sandboxuser/found.txt 2>/dev/null | head -1"
     operator: "contains"
-    expected: "ASTRA"
+    expected: "ОШИБКА"
     points: 30
 

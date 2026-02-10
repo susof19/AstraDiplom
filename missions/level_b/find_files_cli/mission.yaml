@@ -5,49 +5,46 @@ difficulty: 2
 estimated_time: 5
 
 objectives:
-  - "Открыть терминал"
   - "Найти все .log файлы в Documents/logs"
   - "Сохранить полные пути в logs_list.txt"
 
 hints:
-  - "Терминал можно открыть через Меню → Терминал или нажав Ctrl+Alt+T"
+  - "Посмотреть файлы в каталоге: ls Documents/logs"
   - "Для поиска используйте: find Documents/logs -name '*.log' > logs_list.txt"
   - "Проверьте результат командой: cat logs_list.txt"
 
 setup:
   directories:
-    - "/root/Documents/logs"
+    - "/home/sandboxuser/Documents/logs"
   files:
-    - path: "/root/Documents/logs/app.log"
+    - path: "/home/sandboxuser/Documents/logs/app.log"
       content: "Лог приложения"
       mode: "644"
-    - path: "/root/Documents/logs/error.log"
+    - path: "/home/sandboxuser/Documents/logs/error.log"
       content: "Лог ошибок"
       mode: "644"
-    - path: "/root/Documents/logs/system.log"
+    - path: "/home/sandboxuser/Documents/logs/system.log"
       content: "Системный лог"
       mode: "644"
-    - path: "/root/Documents/logs/subdir/debug.log"
+    - path: "/home/sandboxuser/Documents/logs/subdir/debug.log"
       content: "Отладочный лог"
       mode: "644"
-  commands:
-    - "export DISPLAY=:1 && fly-term > /dev/null 2>&1 &"
 
 checks:
   - name: "Файл logs_list.txt существует"
     type: "file_exists"
-    path: "/root/logs_list.txt"
+    path: "/home/sandboxuser/logs_list.txt"
     file_type: "file"
     points: 40
   - name: "Файл содержит пути к .log файлам"
     type: "command_output"
-    command: "grep -c '\\.log$' /root/logs_list.txt 2>/dev/null || echo '0'"
+    command: "grep -c '\\.log$' /home/sandboxuser/logs_list.txt 2>/dev/null || echo '0'"
     operator: "greater_than"
     expected: "0"
     points: 30
   - name: "Количество строк соответствует количеству .log файлов"
     type: "command_output"
-    command: "test $(find /root/Documents/logs -name '*.log' 2>/dev/null | wc -l) -eq $(wc -l < /root/logs_list.txt 2>/dev/null | tr -d ' ' || echo '0') && echo 'match' || echo 'no_match'"
+    command: "test $(find /home/sandboxuser/Documents/logs -name '*.log' 2>/dev/null | wc -l) -eq $(wc -l < /home/sandboxuser/logs_list.txt 2>/dev/null | tr -d ' ' || echo '0') && echo 'match' || echo 'no_match'"
     operator: "contains"
     expected: "match"
     points: 30

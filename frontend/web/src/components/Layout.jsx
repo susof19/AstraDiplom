@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getProgress, getActiveSandbox } from '../api/missions'
 import { getUserInfo } from '../api/admin'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 import axios from 'axios'
 import { useState } from 'react'
 import SandboxInfoDrawer from './SandboxInfoDrawer'
@@ -12,6 +13,7 @@ function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout, isAuthenticated, token } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const [drawerView, setDrawerView] = useState(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   
@@ -56,9 +58,9 @@ function Layout({ children }) {
   })
   
   const hasActiveSandbox = activeSandbox?.has_active || false
-  // Показываем вкладку, если пользователь является администратором
-  // Если загрузка еще идет, показываем вкладку оптимистично (если userInfo уже был закеширован)
+  // Вкладка «Администрирование» всегда видна для администраторов (и при загрузке, чтобы не мигала)
   const isAdmin = userInfo?.is_admin === true
+  const showAdminTab = isAdmin || userInfoLoading
   
   if (isAuthPage) {
     return <>{children}</>
@@ -95,7 +97,7 @@ function Layout({ children }) {
       <header className="header">
         <div className="header-content">
           <Link to="/" className="logo">
-            <h1>🛡️ Linux Training Simulator</h1>
+            <h1>🛡️ Тренажер Astra Linux</h1>
           </Link>
           <div className="header-stats">
             <div className="stat-item">
@@ -118,6 +120,15 @@ function Layout({ children }) {
               <span className="stat-label">Миссий:</span>
               <span className="stat-value">{totalMissions}</span>
             </div>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="theme-toggle"
+              title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+              aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
             <button onClick={handleLogout} className="logout-button">
               Выйти
             </button>
@@ -149,7 +160,7 @@ function Layout({ children }) {
               <span className="nav-icon">👤</span>
               <span>Профиль</span>
             </Link>
-            {isAdmin && (
+            {showAdminTab && (
               <Link to="/admin" className={`nav-item ${location.pathname.startsWith('/admin') ? 'active' : ''}`}>
                 <span className="nav-icon">⚙️</span>
                 <span>Администрирование</span>

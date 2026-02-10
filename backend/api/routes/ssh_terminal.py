@@ -117,23 +117,12 @@ class SSHConnection:
             self.client = None
 
 
-@router.websocket("/sandbox/{mission_id}/ssh")
-async def ssh_terminal(websocket: WebSocket, mission_id: str):
-    """WebSocket endpoint для SSH терминала"""
-    logger.info(f"Попытка WebSocket подключения для SSH терминала миссии {mission_id}")
-    
-    try:
-        await websocket.accept()
-        logger.info(f"WebSocket подключение принято для миссии {mission_id}")
-    except Exception as e:
-        logger.error(f"Ошибка принятия WebSocket подключения: {e}", exc_info=True)
-        return
-    
+async def _run_ssh_terminal_session(websocket: WebSocket, mission_id: str) -> None:
+    """Общая логика сессии SSH терминала (для /sandbox/{id}/ssh и /ws?mission_id=)."""
     ssh_conn = None
     read_task = None
-    
+
     try:
-        # Получаем информацию о песочнице
         sandbox = await sandbox_manager.get_sandbox(mission_id)
         if not sandbox:
             error_msg = "ERROR: Песочница не найдена\n"
@@ -141,31 +130,27 @@ async def ssh_terminal(websocket: WebSocket, mission_id: str):
             await websocket.send_text(error_msg)
             await websocket.close()
             return
-        
+
         if not hasattr(sandbox, 'ssh_port') or not sandbox.ssh_port:
             error_msg = "ERROR: SSH порт не настроен\n"
             logger.error(f"SSH порт не настроен для песочницы {mission_id}")
             await websocket.send_text(error_msg)
             await websocket.close()
             return
-        
-        # Получаем информацию о подключении
+
         host = "localhost"
         port = sandbox.ssh_port
         user = sandbox.container_user or "root"
         password = settings.SSH_PASSWORD
-        
-        # Создаем SSH подключение
+
         ssh_conn = SSHConnection(host, port, user, password)
         if not await ssh_conn.connect():
             await websocket.send_text("ERROR: Не удалось подключиться к SSH серверу\n")
             await websocket.close()
             return
-        
-        # Отправляем приветственное сообщение
+
         await websocket.send_text("\r\n*** Подключено к SSH терминалу ***\r\n")
-        
-        # Задача для чтения из SSH и отправки в WebSocket
+
         async def read_from_ssh():
             while True:
                 try:
@@ -177,35 +162,32 @@ async def ssh_terminal(websocket: WebSocket, mission_id: str):
                 except Exception as e:
                     logger.error(f"Ошибка чтения из SSH: {e}")
                     break
-        
+
         read_task = asyncio.create_task(read_from_ssh())
-        
-        # Основной цикл: читаем из WebSocket и отправляем в SSH
+
         while True:
             try:
                 message = await websocket.receive()
-                
+
                 if message["type"] == "websocket.receive":
                     if "text" in message:
-                        # Текстовые данные (команды)
                         text = message["text"]
                         await ssh_conn.write(text.encode('utf-8'))
                     elif "bytes" in message:
-                        # Бинарные данные
                         await ssh_conn.write(message["bytes"])
-                
+
             except WebSocketDisconnect:
                 logger.info("WebSocket отключен")
                 break
             except Exception as e:
                 logger.error(f"Ошибка обработки WebSocket сообщения: {e}")
                 break
-        
+
     except Exception as e:
         logger.error(f"Ошибка в SSH терминале: {e}", exc_info=True)
         try:
             await websocket.send_text(f"ERROR: {str(e)}\n")
-        except:
+        except Exception:
             pass
     finally:
         if read_task:
@@ -214,6 +196,54 @@ async def ssh_terminal(websocket: WebSocket, mission_id: str):
             await ssh_conn.close()
         try:
             await websocket.close()
-        except:
+        except Exception:
             pass
+
+
+@router.websocket("/sandbox/{mission_id}/ssh")
+async def ssh_terminal(websocket: WebSocket, mission_id: str):
+    """WebSocket endpoint для SSH терминала (стандартный путь)."""
+    logger.info(f"Попытка WebSocket подключения для SSH терминала миссии {mission_id}")
+
+    try:
+        await websocket.accept()
+        logger.info(f"WebSocket подключение принято для миссии {mission_id}")
+    except Exception as e:
+        logger.error(f"Ошибка принятия WebSocket подключения: {e}", exc_info=True)
+        return
+
+    await _run_ssh_terminal_session(websocket, mission_id)
+
+
+# Роутер для пути /ws (без префикса /api) — некоторые прокси отправляют WebSocket сюда
+ws_router = APIRouter()
+
+
+@ws_router.websocket("/ws")
+async def ws_ssh_terminal(websocket: WebSocket):
+    """
+    WebSocket по пути /ws с параметром mission_id в query.
+    Используется, когда прокси или клиент подключается к /ws вместо /api/v1/sandbox/{id}/ssh.
+    Также обрабатывает запросы от webpack-dev-server hot reload (без mission_id) — просто закрываем.
+    """
+    mission_id = websocket.query_params.get("mission_id")
+    if not mission_id:
+        # Это, скорее всего, hot reload от webpack — принимаем и сразу закрываем без ошибки
+        try:
+            await websocket.accept()
+            await websocket.close(code=1000)  # Normal closure
+        except Exception:
+            pass
+        return
+
+    logger.info(f"WebSocket /ws: подключение для миссии {mission_id}")
+
+    try:
+        await websocket.accept()
+        logger.info(f"WebSocket /ws подключение принято для миссии {mission_id}")
+    except Exception as e:
+        logger.error(f"Ошибка принятия WebSocket /ws: {e}", exc_info=True)
+        return
+
+    await _run_ssh_terminal_session(websocket, mission_id)
 

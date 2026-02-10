@@ -46,6 +46,22 @@
   font-size: 0.9rem;
 }
 
+.theme-toggle {
+  padding: 8px 12px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+  margin-left: 0.5rem;
+}
+
+.theme-toggle:hover {
+  background: var(--border-color);
+  transform: scale(1.05);
+}
+
 .logout-button {
   padding: 8px 16px;
   background: #dc3545;

@@ -1,17 +1,16 @@
-name: "Создать Bash-скрипт для подсчёта строк"
+name: "Создать скрипт для подсчёта строк"
 description: "В домашней директории создайте bash-скрипт count_lines.sh, который принимает имя файла в качестве аргумента и выводит количество строк в этом файле. Сделайте его исполняемым (chmod +x count_lines.sh) и запустите на файле Documents/data.txt."
 level: "B"
 difficulty: 3
 estimated_time: 7
 
 objectives:
-  - "Открыть терминал"
-  - "Создать bash-скрипт count_lines.sh в домашней директории"
+  - "Создать скрипт count_lines.sh в домашней директории"
   - "Сделать скрипт исполняемым (chmod +x)"
   - "Запустить скрипт на файле Documents/data.txt"
 
 hints:
-  - "Терминал можно открыть через Меню → Терминал или нажав Ctrl+Alt+T"
+  - "Посмотреть файлы: ls (скрипт должен появиться в списке после создания)"
   - "Создайте скрипт: nano count_lines.sh или используйте echo"
   - "Скрипт должен содержать: #!/bin/bash и wc -l \"$1\""
   - "Сделайте исполняемым: chmod +x count_lines.sh"
@@ -19,9 +18,9 @@ hints:
 
 setup:
   directories:
-    - "/root/Documents"
+    - "/home/sandboxuser/Documents"
   files:
-    - path: "/root/Documents/data.txt"
+    - path: "/home/sandboxuser/Documents/data.txt"
       content: |
         Строка 1
         Строка 2
@@ -29,30 +28,28 @@ setup:
         Строка 4
         Строка 5
       mode: "644"
-  commands:
-    - "export DISPLAY=:1 && fly-term > /dev/null 2>&1 &"
 
 checks:
   - name: "Скрипт count_lines.sh существует"
     type: "file_exists"
-    path: "/root/count_lines.sh"
+    path: "/home/sandboxuser/count_lines.sh"
     file_type: "file"
     points: 30
   - name: "Скрипт имеет бит исполнения"
     type: "command_output"
-    command: "test -x /root/count_lines.sh && echo 'executable' || echo 'not_executable'"
+    command: "test -x /home/sandboxuser/count_lines.sh && echo 'executable' || echo 'not_executable'"
     operator: "contains"
     expected: "executable"
     points: 30
   - name: "Скрипт содержит shebang"
     type: "file_content"
-    path: "/root/count_lines.sh"
+    path: "/home/sandboxuser/count_lines.sh"
     operator: "contains"
     expected: "#!/bin/bash"
     points: 20
   - name: "Скрипт выводит правильное количество строк"
     type: "command_output"
-    command: "/root/count_lines.sh /root/Documents/data.txt 2>/dev/null"
+    command: "/home/sandboxuser/count_lines.sh /home/sandboxuser/Documents/data.txt 2>/dev/null"
     operator: "contains"
     expected: "5"
     points: 20

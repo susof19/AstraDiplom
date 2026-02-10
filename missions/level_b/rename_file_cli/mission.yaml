@@ -5,41 +5,38 @@ difficulty: 1
 estimated_time: 3
 
 objectives:
-  - "Открыть терминал"
   - "Перейти в каталог Documents"
   - "Переименовать файл data.txt в data_backup.txt командой mv"
 
 hints:
-  - "Терминал можно открыть через Меню → Терминал"
+  - "Посмотреть файлы в каталоге: ls или ls Documents"
   - "Для переименования используйте: mv Documents/data.txt Documents/data_backup.txt"
   - "Или перейдите в папку: cd Documents, затем: mv data.txt data_backup.txt"
-  - "Проверьте результат командой: ls Documents/data_backup.txt"
+  - "Проверьте результат командой: ls Documents или ls Documents/data_backup.txt"
 
 setup:
   directories:
-    - "/root/Documents"
+    - "/home/sandboxuser/Documents"
   files:
-    - path: "/root/Documents/data.txt"
+    - path: "/home/sandboxuser/Documents/data.txt"
       content: "Это данные для резервного копирования."
       mode: "644"
-  commands:
-    - "export DISPLAY=:1 && fly-term > /dev/null 2>&1 &"
 
 checks:
   - name: "Файл data_backup.txt существует"
     type: "file_exists"
-    path: "/root/Documents/data_backup.txt"
+    path: "/home/sandboxuser/Documents/data_backup.txt"
     file_type: "file"
     points: 50
   - name: "Файл data.txt удален"
     type: "file_exists"
-    path: "/root/Documents/data.txt"
+    path: "/home/sandboxuser/Documents/data.txt"
     file_type: "file"
     expected: False
     points: 25
   - name: "Содержимое файла сохранено"
     type: "file_content"
-    path: "/root/Documents/data_backup.txt"
+    path: "/home/sandboxuser/Documents/data_backup.txt"
     operator: "equals"
     expected: "Это данные для резервного копирования."
     points: 25

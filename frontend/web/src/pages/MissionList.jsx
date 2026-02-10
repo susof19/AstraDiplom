@@ -7,17 +7,22 @@ import MissionGeneratorChat from '../components/MissionGeneratorChat'
 import './MissionList.css'
 
 function MissionList() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const level = searchParams.get('level')
+  const scope = searchParams.get('scope') || 'all' // 'all' | 'personal'
   const [showGenerator, setShowGenerator] = useState(false)
   const [mounted, setMounted] = useState(false)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   
-  const { data: missions = [], isLoading } = useQuery({
+  const { data: allMissions = [], isLoading } = useQuery({
     queryKey: ['missions', level],
     queryFn: () => getMissions(level)
   })
+
+  const missions = scope === 'personal'
+    ? allMissions.filter(m => m.is_personal)
+    : allMissions
 
   useEffect(() => {
     setMounted(true)
@@ -64,15 +69,39 @@ function MissionList() {
             ✨ Создать личную миссию
           </button>
         </div>
+        <div className="scope-tabs">
+          <button
+            type="button"
+            className={`scope-tab ${scope === 'all' ? 'active' : ''}`}
+            onClick={() => setSearchParams(prev => {
+              const next = new URLSearchParams(prev)
+              next.set('scope', 'all')
+              return next
+            })}
+          >
+            Все
+          </button>
+          <button
+            type="button"
+            className={`scope-tab ${scope === 'personal' ? 'active' : ''}`}
+            onClick={() => setSearchParams(prev => {
+              const next = new URLSearchParams(prev)
+              next.set('scope', 'personal')
+              return next
+            })}
+          >
+            Личная
+          </button>
+        </div>
         <div className="level-tabs">
           <Link 
-            to="/missions?level=A" 
+            to={`/missions?level=A&scope=${scope}`}
             className={`level-tab ${(!level || level === 'A') ? 'active' : ''}`}
           >
             Уровень A: Новички
           </Link>
           <Link 
-            to="/missions?level=B" 
+            to={`/missions?level=B&scope=${scope}`}
             className={`level-tab ${level === 'B' ? 'active' : ''}`}
           >
             Уровень B: Продвинутые пользователи

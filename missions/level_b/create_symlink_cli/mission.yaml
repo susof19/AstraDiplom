@@ -1,46 +1,43 @@
 name: "Создать символическую ссылку"
-description: "В домашней директории создайте символическую ссылку data_link.txt, которая указывает на файл Documents/data.txt. Для этого в терминале можно использовать команду ln -s."
+description: "В домашней директории создайте символическую ссылку data_link.txt, которая указывает на файл Documents/data.txt. Используйте команду ln -s."
 level: "B"
 difficulty: 2
 estimated_time: 4
 
 objectives:
-  - "Открыть терминал"
   - "Создать символическую ссылку data_link.txt на Documents/data.txt"
   - "Использовать команду ln -s"
 
 hints:
-  - "Терминал можно открыть через Меню → Терминал"
+  - "Посмотреть файлы в домашней директории: ls или ls -l"
   - "Для создания ссылки используйте: ln -s Documents/data.txt data_link.txt"
   - "Проверьте ссылку командой: ls -l data_link.txt"
   - "Проверьте содержимое: cat data_link.txt"
 
 setup:
   directories:
-    - "/root/Documents"
+    - "/home/sandboxuser/Documents"
   files:
-    - path: "/root/Documents/data.txt"
+    - path: "/home/sandboxuser/Documents/data.txt"
       content: "Данные для ссылки"
       mode: "644"
-  commands:
-    - "export DISPLAY=:1 && fly-term > /dev/null 2>&1 &"
 
 checks:
   - name: "Символическая ссылка data_link.txt существует"
     type: "file_exists"
-    path: "/root/data_link.txt"
+    path: "/home/sandboxuser/data_link.txt"
     file_type: "file"
     points: 40
   - name: "Файл является символической ссылкой"
     type: "command_output"
-    command: "test -L /root/data_link.txt && echo 'symlink' || echo 'not_symlink'"
+    command: "test -L /home/sandboxuser/data_link.txt && echo 'symlink' || echo 'not_symlink'"
     operator: "contains"
     expected: "symlink"
     points: 30
   - name: "Ссылка указывает на правильный файл"
     type: "command_output"
-    command: "readlink -f /root/data_link.txt 2>/dev/null"
+    command: "readlink -f /home/sandboxuser/data_link.txt 2>/dev/null"
     operator: "contains"
-    expected: "/root/Documents/data.txt"
+    expected: "/home/sandboxuser/Documents/data.txt"
     points: 30
 

@@ -576,11 +576,10 @@ class ContainerSandbox:
                     logger.error(f"[CREATE] Ошибка проверки статуса: {e}")
                 return False
             
-            # Для уровня B всегда используем root, не определяем пользователя через exec_command
-            # т.к. exec_command может не работать, если контейнер еще не готов
+            # Для уровня B временно root; ниже _ensure_sandbox_user_for_b создаст sandboxuser и переключит на него
             if self.level.upper() == "B":
                 self.container_user = "root"
-                logger.info(f"[CREATE] Для уровня B используем пользователя: root (без определения)")
+                logger.info(f"[CREATE] Для уровня B: будет создан пользователь sandboxuser (до setup)")
             elif "astra-vnc" in self.image.lower():
                 self.container_user = "root"
                 logger.info(f"[CREATE] Используется пользователь root для образа astra-vnc")
@@ -603,6 +602,10 @@ class ContainerSandbox:
                     # Для уровня B используем root по умолчанию
                     self.container_user = "root" if self.level.upper() == "B" else "sandboxuser"
             
+            # Для уровня B создаём пользователя до setup, чтобы файлы создавались в его домашней директории
+            if self.level.upper() == "B":
+                await self._ensure_sandbox_user_for_b()
+
             logger.info(f"[SETUP] === НАЧАЛО ВЫПОЛНЕНИЯ SETUP ДЛЯ МИССИИ {self.mission_id} ===")
             try:
                 await self._run_setup_after_create()
@@ -1031,6 +1034,22 @@ class ContainerSandbox:
         except Exception as e:
             logger.error(f"Ошибка выполнения setup для миссии {self.mission_id}: {e}", exc_info=True)
     
+    async def _ensure_sandbox_user_for_b(self):
+        """Создать пользователя sandboxuser для уровня B до выполнения setup (файлы создаются в его домашней директории)."""
+        logger.info(f"[CREATE] Проверка пользователя sandboxuser для уровня B")
+        output, code = await self.exec_command("id -u sandboxuser 2>/dev/null", user="root")
+        if code != 0:
+            logger.info(f"[CREATE] Создание пользователя sandboxuser")
+            await self.exec_command("useradd -m -s /bin/bash sandboxuser", user="root")
+            password = settings.SSH_PASSWORD
+            await self.exec_command(f"echo 'sandboxuser:{password}' | chpasswd", user="root")
+            await self.exec_command("mkdir -p /home/sandboxuser/.ssh", user="root")
+            await self.exec_command("chown -R sandboxuser:sandboxuser /home/sandboxuser", user="root")
+        else:
+            await self.exec_command(f"echo 'sandboxuser:{settings.SSH_PASSWORD}' | chpasswd", user="root")
+        self.container_user = "sandboxuser"
+        logger.info(f"[CREATE] Для уровня B используется пользователь: sandboxuser (домашняя директория: /home/sandboxuser)")
+
     async def _setup_ssh_server(self):
         """Настроить SSH сервер для уровня B"""
         logger.info(f"[SSH] Начало настройки SSH сервера")

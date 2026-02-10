@@ -4,8 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
+    <script>
+      (function() {
+        var t = localStorage.getItem('app-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+        else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) document.documentElement.setAttribute('data-theme', 'light');
+        else document.documentElement.setAttribute('data-theme', 'dark');
+      })();
+    </script>
     <meta name="description" content="Linux Training Simulator - безопасное обучение работе с Linux через практику в изолированных песочницах" />
-    <title>Linux Training Simulator</title>
+    <title>Тренажер Astra Linux</title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
